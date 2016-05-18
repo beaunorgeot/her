@@ -415,7 +415,22 @@ all_lapatinib_order_dates %>% filter(Patient_ID == "629998774733394") %>% dim(.)
 y1 = rep(1,4)
 lap_order_dates = all_lapatinib_order_dates %>% filter(Patient_ID == "629998774733394") %>% cbind(.,y1) %>% select(lapat_med_date,y1)
 
-#create function first, then for on function
+# ifelse always converts dates to numeric b/c it's stupid. Create a function that preserves format (borrowed from Hadley Wickam)
+safe.ifelse <- function(cond, yes, no) {structure(ifelse(cond, yes, no), class = class(yes))}
+
+# get the first and last dates of orders to set the x-axis scale
+first_her = all_herceptin_order_dates %>% select(c(Patient_ID,med_date)) %>% arrange(med_date)
+first_her= first_her[match(unique(first_her$Patient_ID),first_her$Patient_ID),]
+last_her = all_herceptin_order_dates %>% select(c(Patient_ID,med_date)) %>% arrange(desc(med_date))
+last_her= last_her[match(unique(last_her$Patient_ID),last_her$Patient_ID),]
+first_lap = all_lapatinib_order_dates %>% select(c(Patient_ID,lapat_med_date)) %>% arrange(lapat_med_date)
+first_lap= first_lap[match(unique(first_lap$Patient_ID),first_lap$Patient_ID),]
+last_lap = all_lapatinib_order_dates %>% select(c(Patient_ID,lapat_med_date)) %>% arrange(desc(lapat_med_date))
+last_lap= last_lap[match(unique(last_lap$Patient_ID),last_lap$Patient_ID),]
+first_date = safe.ifelse(first_her[1,2] < first_lap[1,2], first_her[1,2], first_lap[1,2])
+last_date = safe.ifelse(last_her[1,2] > last_lap[1,2], last_her[1,2], last_lap[1,2])
+
+#for each person, plot the dates of their herceptin orders and the dates of their lapatinib orders
 plot_person = function(perID){
   d = all_herceptin_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
   y = rep(0,d[1])
@@ -423,11 +438,12 @@ plot_person = function(perID){
   d1 = all_lapatinib_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
   y1 = rep(1,d1[1])
   the_lap_dates = all_lapatinib_order_dates %>% filter(Patient_ID == perID) %>% cbind(.,y1) %>% select(lapat_med_date,y1)
-  my_plot = plot(the_her_dates, pch = 19, xlim = c(),ylim = c(-0.5, 1.5))
+  #plot
+  my_plot = plot(the_her_dates, pch = 19, xlim = c(first_date,last_date),ylim = c(-0.5, 1.5))
   points(the_lap_dates, col = "red", pch = 19)
 }
 
-pdf("patient_her_lap.pdf", h = 17, w = 17)
+pdf("test_patient_her_lap.pdf", h = 17, w = 17)
 par(mfrow = c(10,2))
 for (p in unique(all_herceptin_order_dates$Patient_ID)) {plot_person(p)}
 dev.off()
