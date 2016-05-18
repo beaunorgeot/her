@@ -494,3 +494,29 @@ dev.off()
 
 
 #bob = full_join(all_herceptin_order_dates,all_lapatinib_order_dates) %>% filter(Patient_ID == "629998774733394",med_date == lapat_med_date)
+
+t_all_lapatinib_order_dates = read.csv("all_lapatinib_order_dates.csv")
+#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `Medication_Name` like "%lapatin%" 
+colnames(t_all_lapatinib_order_dates)[3] = "med_date"
+t_all_lapatinib_order_dates$Patient_ID = as.factor(as.character(t_all_lapatinib_order_dates$Patient_ID))
+t_all_lapatinib_order_dates$med_date = as.Date(t_all_lapatinib_order_dates$med_date, format = "%Y-%m-%d")
+
+get_date_range = function(drug1, drug2){
+  # drug1, drug2 should be data frames.
+  # each must have a col called med_date (for dates of medication orders). Obvisously they should be in same format
+  # Patient_ID should be a factor
+  first_drug1 = drug1 %>% select(c(Patient_ID,med_date)) %>% arrange(med_date)
+  first_drug1= first_drug1[match(unique(first_drug1$Patient_ID),first_drug1$Patient_ID),]
+  last_drug1 = drug1 %>% select(c(Patient_ID,med_date)) %>% arrange(desc(med_date))
+  last_drug1= last_drug1[match(unique(last_drug1$Patient_ID),last_drug1$Patient_ID),]
+  first_drug2 = drug2 %>% select(c(Patient_ID,med_date)) %>% arrange(med_date)
+  first_drug2= first_drug2[match(unique(first_drug2$Patient_ID),first_drug2$Patient_ID),]
+  last_drug2 = drug2 %>% select(c(Patient_ID,med_date)) %>% arrange(desc(med_date))
+  last_drug2= last_drug2[match(unique(last_drug2$Patient_ID),last_drug2$Patient_ID),]
+  first_date = safe.ifelse(first_drug1[1,2] < first_drug2[1,2], first_drug1[1,2], first_drug2[1,2])
+  last_date = safe.ifelse(last_drug1[1,2] > last_drug2[1,2], last_drug1[1,2], last_drug2[1,2])
+  date_range = list(first_date,last_date)
+  return(date_range)
+}
+
+get_date_range(all_herceptin_order_dates,t_all_lapatinib_order_dates)
