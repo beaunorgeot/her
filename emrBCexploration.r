@@ -487,7 +487,7 @@ dev.off()
 ####
 
 #todo:
-#0. consistent x-axis for graphs. 
+#0. consistent x-axis for graphs. Done, clean up the plot function to make it generic. Things on 524 all work but need updating
 #1. what is happening during the gaps in herceptin tx, surgery?
 #2. what does an order of her or laptininb mean? 1 dose, 21 doses etc?
 #4. albuterol
@@ -495,6 +495,7 @@ dev.off()
 
 #bob = full_join(all_herceptin_order_dates,all_lapatinib_order_dates) %>% filter(Patient_ID == "629998774733394",med_date == lapat_med_date)
 
+##############_________play space for functions
 t_all_lapatinib_order_dates = read.csv("all_lapatinib_order_dates.csv")
 #select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `Medication_Name` like "%lapatin%" 
 colnames(t_all_lapatinib_order_dates)[3] = "med_date"
@@ -515,8 +516,27 @@ get_date_range = function(drug1, drug2){
   last_drug2= last_drug2[match(unique(last_drug2$Patient_ID),last_drug2$Patient_ID),]
   first_date = safe.ifelse(first_drug1[1,2] < first_drug2[1,2], first_drug1[1,2], first_drug2[1,2])
   last_date = safe.ifelse(last_drug1[1,2] > last_drug2[1,2], last_drug1[1,2], last_drug2[1,2])
-  date_range = list(first_date,last_date)
+  date_range = c(first_date,last_date)
   return(date_range)
 }
 
-get_date_range(all_herceptin_order_dates,t_all_lapatinib_order_dates)
+juju= get_date_range(all_herceptin_order_dates,t_all_lapatinib_order_dates)
+
+a_plot_person = function(drug1,drug2){
+  d1 = drug1 %>% filter(Patient_ID == perID) %>% dim(.)
+  y = rep(0,d[1])
+  the_drug1_dates = drug1 %>% filter(Patient_ID == perID) %>% cbind(.,y) %>% select(med_date,y)
+  d2 = drug2 %>% filter(Patient_ID == perID) %>% dim(.)
+  y1 = rep(1,d2[1])
+  the_drug2_dates = drug2 %>% filter(Patient_ID == perID) %>% cbind(.,y1) %>% select(med_date,y1)
+  #plot
+  my_plot = plot(the_drug1_dates, pch = 19, xlim = juju,ylim = c(-0.5, 1.5))
+  # works. change to xlim = get_date_range(table1YouWant,table2YouWant)
+  points(the_drug2_dates, col = "red", pch = 19)
+  #change to point(drug2)
+}
+
+pdf("test_patient_her_lap.pdf", h = 17, w = 17)
+par(mfrow = c(10,2))
+for (p in unique(all_herceptin_order_dates$Patient_ID)) {a_plot_person(p)}
+dev.off()
