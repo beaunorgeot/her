@@ -522,21 +522,19 @@ get_date_range = function(drug1, drug2){
 
 juju= get_date_range(all_herceptin_order_dates,t_all_lapatinib_order_dates)
 
-a_plot_person = function(drug1,drug2){
+a_plot_person = function(perID,drug1,drug2){
   d1 = drug1 %>% filter(Patient_ID == perID) %>% dim(.)
-  y = rep(0,d[1])
+  y = rep(0,d1[1])
   the_drug1_dates = drug1 %>% filter(Patient_ID == perID) %>% cbind(.,y) %>% select(med_date,y)
   d2 = drug2 %>% filter(Patient_ID == perID) %>% dim(.)
   y1 = rep(1,d2[1])
   the_drug2_dates = drug2 %>% filter(Patient_ID == perID) %>% cbind(.,y1) %>% select(med_date,y1)
   #plot
-  my_plot = plot(the_drug1_dates, pch = 19, xlim = juju,ylim = c(-0.5, 1.5))
-  # works. change to xlim = get_date_range(table1YouWant,table2YouWant)
+  my_plot = plot(the_drug1_dates, pch = 19, xlim = get_date_range(drug1,drug2),ylim = c(-0.5, 1.5))
   points(the_drug2_dates, col = "red", pch = 19)
-  #change to point(drug2)
 }
 
 pdf("test_patient_her_lap.pdf", h = 17, w = 17)
 par(mfrow = c(10,2))
-for (p in unique(all_herceptin_order_dates$Patient_ID)) {a_plot_person(p)}
+for (p in unique(all_herceptin_order_dates$Patient_ID)) {a_plot_person(p,all_herceptin_order_dates,t_all_lapatinib_order_dates)}
 dev.off()
