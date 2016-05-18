@@ -1,4 +1,4 @@
-setwd("/Users/beaunorgeot/Desktop")
+setwd("/Users/beaunorgeot/Desktop") #note: this script lives in ~/her
 
 #function to calc the mode b/c R is weird. Keep for reference. Use modeCount() instead most time
 getmode <- function(v) {
@@ -47,7 +47,16 @@ library(reshape2)
 combinedMelt = melt(beforeAfterCombined, id.vars = c("Patient_ID"), variable.name = "status", value.name = "count")
 combinedBoxPlot = ggplot() + geom_boxplot(notch = T, data = combinedMelt,aes(x = status, y = count, fill = status))
 diffPlot = ggplot() + geom_bar(data = beforeAfterCombinedDiff, aes(x = difference))
-boxplot(beforeAfterCombinedDiff$difference, horizontal = T)
+#boxplot(beforeAfterCombinedDiff$difference, horizontal = T)
+
+# herceptin patients after diagnosis
+# select `DIAGNOSES`.`Patient_ID`, COUNT(DISTINCT `MEDICATION_ORDERS`.`Medication_Name`) from `DIAGNOSES`, `MEDICATION_ORDERS` where `MEDICATION_ORDERS`.`Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `DIAGNOSES`.`Patient_ID` = `MEDICATION_ORDERS`.`Patient_ID` and `MEDICATION_ORDERS`.`Medication_Order_End_Date2` >= `DIAGNOSES`.`Diagnosis_Start_Date2` GROUP BY `DIAGNOSES`.`Patient_ID`
+herPatients_number_meds_after_diagnosis = read.csv("herPatients_number_meds_after_diagnosis.csv")
+names(herPatients_number_meds_after_diagnosis) = c("Patient_ID", "her_pats_number_meds_after")
+mean(herPatients_number_meds_after_diagnosis$her_pats_number_meds_after) #58
+median(herPatients_number_meds_after_diagnosis$her_pats_number_meds_after) #54
+max(herPatients_number_meds_after_diagnosis$her_pats_number_meds_after) #54
+her_numMedAfterPlot = ggplot() + geom_bar(data = herPatients_number_meds_after_diagnosis, aes(her_pats_number_meds_after), fill = "white", colour = "darkgreen") + geom_text(stat = 'bin', aes(label = ..count..),vjust = -1) + xlim(0,100) +  ggtitle("Herceptin: Number of Distinct Medications Ordered After to Diagnosis")
 
 # BC patient demogrphaics
 bcPatientDemographics = read.csv("bcPatientDemographics.csv")
@@ -85,7 +94,9 @@ both = trasANDtoc %>% mutate(tras = ifelse(grepl("TRAS",Medication_Name),1,0)) %
 # is anyone taking trastuzumab and leptinib?
 trasANDlapat = read.csv("trastORlapat.csv")
 trasANDlapat$Patient_ID = as.character(trasANDlapat$Patient_ID)
-both_tras_lapat = trasANDlepat %>% mutate(tras = ifelse(grepl("TRAS",Medication_Name),1,0)) %>% mutate(lapat = ifelse(grepl("LAPAT",Medication_Name),1,0)) %>% group_by(Patient_ID) %>% summarise(tras_total = sum(tras), lapat_total = sum(lapat)) %>% filter(tras_total > 0 & lapat_total > 0)
+both_tras_lapat = trasANDlapat %>% mutate(tras = ifelse(grepl("TRAS",Medication_Name),1,0)) %>% mutate(lapat = ifelse(grepl("LAPAT",Medication_Name),1,0)) %>% group_by(Patient_ID) %>% summarise(tras_total = sum(tras), lapat_total = sum(lapat)) %>% filter(tras_total > 0 & lapat_total > 0)
+# there are 20 people on both
+
 
 # what 'medication_id' s are assoicated with trastuzumab?
 #select `Medication_ID`, `Medication_Name` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%"
@@ -106,7 +117,7 @@ bmi_her = prop.table(table(herPatientDemographics_distinct$Vitals_BMI_Range))# 1
 herPatientDemographics_distinct$timeSinceDiagnosis = as.numeric(herPatientDemographics_distinct$timeSinceDiagnosis)
 time_since_diagnosis_her = summary(herPatientDemographics_distinct$timeSinceDiagnosis) # min =170, Median = 1112, Mean = 1079, Max = 1764
 
-# Did testing for her2 status happen?
+# Did receptor testing for her2 status happen?
 her2testing = read.csv("testing_for_her2.csv")
 # results from query: select distinct `DIAGNOSES`.`Patient_ID`, `Billing_CPT_Name`, `Billing_Service_Date2`, `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Start_Date2` from `DIAGNOSES`,`BILLING` where ( `Billing_Procedure_Code` = "86300" or `Billing_Procedure_Code` = "88368" or `Billing_Procedure_Code` = "88360" or `Billing_Procedure_Code`= "88342") and `BILLING`.`Patient_ID` = `DIAGNOSES`.`Patient_ID` and `DIAGNOSES`.`ICD9_Code` = "174.9"
 # dim(her2testing) 564122
@@ -172,7 +183,7 @@ first_d_t = inner_join(di.first,te.first)
 first_d_t = first_d_t %>% mutate(time_lag = difftime(Billing_Service_Date2,Diagnosis_Start_Date2))
 first_d_t %>% summarise(avg = mean(time_lag), mode = modeCount(time_lag), med = median(time_lag)) #avgs are pretty useless, there's crazy outliers
 # avg = 166.678 days, mode= 7 count= 48, med = 49
-plot_first_d_t = ggplot() + geom_bar(data = first_d_t, aes(x = as.numeric(time_lag)))
+plot_first_d_t = ggplot() + geom_bar(data = first_d_t, aes(x = as.numeric(time_lag)),fill = "white", colour = "darkgreen")
 first_d_t %>% group_by(Billing_CPT_Name) %>% summarise(n = n()) %>% arrange(desc(n)) #most people get IHC first
 #1         IMMUNOHISTOCHEMISTRY  1012
 #2 TUMOR IMMUNOHISTOCHEM/MANUAL   508
@@ -183,6 +194,18 @@ first_d_t %>% group_by(Billing_CPT_Name) %>% summarise(avg_lag= mean(time_lag)) 
 #2         IMMUNOHISTOCHEMISTRY 170.7747 days
 #3 TUMOR IMMUNOHISTOCHEM/MANUAL 143.0394 days
 #4 INSITU HYBRIDIZATION, MANUAL  33.0000 days
+first_d_t %>% group_by(Billing_CPT_Name) %>% summarise(median_lag= median(time_lag)) %>% arrange(desc(median_lag)) 
+#1  IMMUNOASSAY, TUMOR, CA 15-3  85.0 days
+#2         IMMUNOHISTOCHEMISTRY  49.0 days
+#3 TUMOR IMMUNOHISTOCHEM/MANUAL  35.5 days
+#4 INSITU HYBRIDIZATION, MANUAL  11.0 days
+first_d_t %>% group_by(Billing_CPT_Name) %>% summarise(mode_lag= modeCount(time_lag))
+#  IMMUNOASSAY, TUMOR, CA 15-3 mode= 182 count= 9
+#         IMMUNOHISTOCHEMISTRY  mode= 7 count= 22
+#INSITU HYBRIDIZATION, MANUAL  mode= 11 count= 4
+#TUMOR IMMUNOHISTOCHEM/MANUAL  mode= 7 count= 15
+
+
 #### end first occurence of bc and tests ###############
 
 #next, run same query but include filter for patients on herceptin and include medication order date. Look at diff between diagnosis and her and test and her and diagnosis and test
@@ -242,6 +265,8 @@ her_first_m_d_t %>% select(di_med_diff) %>% filter(di_med_diff < 0) %>% dim(.) #
 her_first_m_d_t %>% summarise(avg_di_test = mean(di_test_diff), avg_test_med = mean(test_med_diff), avg_di_med = mean(di_med_diff))
 #   avg_di_test   avg_test_med    avg_di_med
 #1 145.1942 days -26.98544 days 118.2087 days
+
+her_first_m_d_t %>% summarise(median_di_med = median(di_test_diff)) # 40 days
 # modes
 her_first_m_d_t %>% summarise(mode_di_test = modeCount(di_test_diff), mode_test_med = modeCount(test_med_diff), mode_di_med = modeCount(di_med_diff))
 #mode_di_test     mode_test_med      mode_di_med
@@ -261,6 +286,11 @@ her_first_m_d_t %>% group_by(Billing_CPT_Name) %>% summarise(avg_lag= mean(di_te
 #2 TUMOR IMMUNOHISTOCHEM/MANUAL 140.9647 days
 #3         IMMUNOHISTOCHEMISTRY 122.3889 days
 #4 INSITU HYBRIDIZATION, MANUAL  10.2500 days
+her_first_m_d_t %>% group_by(Billing_CPT_Name) %>% summarise(median_lag= median(di_test_diff)) %>% arrange(desc(median_lag)) 
+#1  IMMUNOASSAY, TUMOR, CA 15-3    67 days
+#2         IMMUNOHISTOCHEMISTRY    40 days
+#3 TUMOR IMMUNOHISTOCHEM/MANUAL    30 days
+#4 INSITU HYBRIDIZATION, MANUAL     8 days
 
 ##### end first occurr####
 
@@ -268,7 +298,7 @@ her_first_m_d_t %>% group_by(Billing_CPT_Name) %>% summarise(avg_lag= mean(di_te
 #1. alive vs dead vs unknown
 bc_death = read.csv("bc_death.csv")
 bc_death %>% distinct(Patient_ID) %>% dim(.) #9455 people, got everyone
-bc_death %>% filter(Patient_Status == "Deceased") %>% distinct(Patient_ID) %>% dim(.) #348 people died
+bc_death %>% filter(Patient_Status == "Deceased") %>% distinct(Patient_ID) %>% dim(.) #348 people died: 3.6%
 bc_death %>% filter(Patient_Status == "Deceased",Patient_Death_Date2 == "0000-00-00") %>% distinct(Patient_ID) %>% dim(.) # we have actual death dates on 166/348 people
 bc_death$Diagnosis_Start_Date2 = as.Date(bc_death$Diagnosis_Start_Date2, format = "%Y-%m-%d")
 bc_death$Patient_Death_Date2 = as.Date(bc_death$Patient_Death_Date2, format = "%Y-%m-%d")
@@ -282,5 +312,169 @@ bc_diagnosis_death = bc_diagnosis_death %>% mutate(time_to_death = difftime(Pati
 bc_diagnosis_death %>% summarise(avg_death = mean(time_to_death), med_death = median(time_to_death))
 # avg_death med_death
 #382.3376 days  350 days
-#2. then do same but look for whether other cancer meds were entered after herceptin? Could be tricky, must have clear idea of when/where
-# this would signal a non-response. 
+
+#2 How does this compare to herceptin?
+her_death = read.csv("her_death.csv")
+her_death %>% distinct(Patient_ID) %>% dim(.) #316 people, got everyone
+her_death %>% filter(Patient_Status == "Deceased") %>% distinct(Patient_ID) %>% dim(.) #32 people died: 10.1%. her given to patients with worse prognosis
+her_death$Medication_Order_Ordered_Date2 = as.Date(her_death$Medication_Order_Ordered_Date2, format = "%Y-%m-%d")
+her_death$Patient_Death_Date2 = as.Date(her_death$Patient_Death_Date2, format = "%Y-%m-%d")
+her_death %>% filter(Patient_Status == "Deceased",!is.na(Patient_Death_Date2)) %>% distinct(Patient_ID) %>% dim(.) # we have actual death dates on 12/316 people
+#get time from date of first diagnosis to death
+# first, get first medication date for each patient
+her_di = her_death  %>% select(c(Patient_ID,Medication_Order_Ordered_Date2)) %>% filter(!is.na(Medication_Order_Ordered_Date2)) %>% arrange(Medication_Order_Ordered_Date2)
+her_di.first = her_di[match(unique(her_di$Patient_ID), her_di$Patient_ID),]
+# take all herceptin patients who have died
+her_dead_pats = her_death %>% select(-Medication_Order_Ordered_Date2) %>% filter(Patient_Status == "Deceased", !is.na(Patient_Death_Date2)) %>% distinct(Patient_ID)
+her_diagnosis_death = inner_join(her_di.first,her_dead_pats) # still 12 people
+her_diagnosis_death = her_diagnosis_death %>% mutate(time_to_death = difftime(Patient_Death_Date2,Medication_Order_Ordered_Date2, units = "days"))
+her_diagnosis_death %>% summarise(avg_death = mean(time_to_death), med_death = median(time_to_death))
+#herceptin patients die faster (though there's only 12 of them)
+#avg_death med_death
+#288.25 days  207 days
+her_death_plot = ggplot() + geom_bar(data = her_diagnosis_death, aes(x = as.numeric(time_to_death)))
+
+#COULD PLOT THE DEATH DISTRIBUTIONS (BC VS HER) SIDE BY SIDE
+
+##### prognostic testing, herceptin, etc
+pid_her_and_bc = read.csv("pid_her_and_bc.csv")
+pid_her_only = read.csv("pid_her_only.csv")
+pid_her_not_bc = as.character(setdiff(pid_her_only,pid_her_and_bc)) #15 people getting her that aren't bc
+
+
+#select `Patient_ID`, `ICD9_Code`,`Diagnosis_Name` from `DIAGNOSES` where `Patient_ID` in ("387982982676476", "401993526611477", "413887239061296", "435484920628369", "455471099819988", "476843455340713", "489194019231945", "519014782737941", "5201371852309", "532645433209837", "557798337657005", "571554773952812", "641475504729897", "673936441075057", "803078788332641") and (`Diagnosis_Name` like "%cancer%" or `Diagnosis_Name` like "%neoplasm%")
+her_not_bc_otherDiagnosis = read.csv("her_not_bc_otherDiagnosis.csv")
+her_not_bc_otherDiagnosis$Patient_ID = as.factor(as.character(her_not_bc_otherDiagnosis$Patient_ID))
+#in general, how many diagnosis do people have?
+her_not_bc_otherDiagnosis %>% group_by(Patient_ID) %>% summarise(n = n())
+# one person has only one, half of people have more than 100, half have less
+#what are the most frequent diagnosis for each person
+bob = her_not_bc_otherDiagnosis %>% group_by(Patient_ID,Diagnosis_Name) %>% summarise(n = n()) %>% arrange(desc(n)) #%>% dim(.)
+# all have metastic cancer, all associated w/digestive tract
+#1  387982982676476   756 mostly colon
+#2  401993526611477   129 colon, lung
+#3  413887239061296   450 vast majoirty is stomach or gastric, but this one spread a lot: duedenom, pancrease, ovaries
+#4  435484920628369    46  stomach, gastric
+#5  455471099819988    92 stomach, gastric
+#6  476843455340713    71  esophagus
+#7  489194019231945   103  gastric, stomach
+#8  519014782737941    16  stomach, gastric
+#9    5201371852309   326  esophagus which spread to many other sites
+#10 532645433209837   214 stomach, gastric, esophagus
+#11 557798337657005   144  esophagus
+#12 571554773952812   314  pancreas which spread to liver
+#13 641475504729897    74  tongue
+#14 673936441075057     1  breast (but with different icd9 then expected)
+#15 803078788332641   193  gastro- esophagus
+####
+
+# what other meds are herceptin users taking?
+her_other_drugs = read.csv("her_other_drugs.csv")
+#select `Patient_ID`, `Medication_Name` from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%")
+her_other_drugs$Patient_ID = as.factor(as.character(her_other_drugs$Patient_ID))
+her_other_drugs %>% distinct(Patient_ID) %>% dim(.) # got all 316
+# What drugs is each person taking?
+each_person = her_other_drugs %>% group_by(Patient_ID,Medication_Name) %>% summarise(n = n()) %>% arrange(desc(n))
+# what drugs are prescribed most frequently, ignoring the volume/amount/frequency of the drug w/in a person, multiple orders of the same drug for the same person?
+#mo = her_other_drugs %>% group_by(Patient_ID) %>% distinct(Medication_Name) %>% group_by(Medication_Name) %>% summarise(n = n()) %>% arrange(desc(n))
+her_conco_drugs = her_other_drugs %>% group_by(Patient_ID) %>% distinct(Medication_Name) %>% group_by(Medication_Name) %>% summarise(n = n()) %>% arrange(desc(n))
+
+### how are lapatinib and herceptin used: concurrent, or one after the other ####
+all_lapatinib_order_dates = read.csv("all_lapatinib_order_dates.csv")
+#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `Medication_Name` like "%lapatin%" 
+colnames(all_lapatinib_order_dates)[3] = "lapat_med_date"
+colnames(all_lapatinib_order_dates)[2] = "lapat_medication_name"
+all_lapatinib_order_dates$Patient_ID = as.factor(as.character(all_lapatinib_order_dates$Patient_ID))
+all_lapatinib_order_dates$lapat_med_date = as.Date(all_lapatinib_order_dates$lapat_med_date, format = "%Y-%m-%d")
+all_lapatinib_order_dates %>% group_by(Patient_ID) %>% summarise(n = n())
+# most people in here only received 1 single order of lapatinib. The max is 8
+
+all_herceptin_order_dates = read.csv("all_herceptin_order_dates.csv")
+#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%lapatinib%") and `Medication_Name` like "%trastuzu%" 
+all_herceptin_order_dates$Patient_ID = as.factor(as.character(all_herceptin_order_dates$Patient_ID))
+all_herceptin_order_dates$med_date = as.Date(all_herceptin_order_dates$med_date, format = "%Y-%m-%d")
+# are any patients ordered the same drug more than 1x a day?
+twoXDayHer = all_herceptin_order_dates %>% group_by(Patient_ID, med_date) %>% summarise(n = n())
+table(twoXDayHer$n) # nearly all only have 1x day, but 17 people have 2x on day, and 1 person has 3x
+# remove duplicate dates for the same person
+single_all_herceptin_order_dates = all_herceptin_order_dates %>% distinct(Patient_ID, med_date)
+her_lap_time = full_join(single_all_herceptin_order_dates,all_lapatinib_order_dates, by = "Patient_ID") %>% mutate(time_diff = difftime(lapat_med_date,med_date, units = "days")) #%>% distinct(Patient_ID, lapat_med_date)
+####
+# what is the difference in time between the first hercept order date and the first lapatinib order date?
+first_her = all_herceptin_order_dates %>% select(c(Patient_ID,med_date)) %>% arrange(med_date)
+first_her= first_her[match(unique(first_her$Patient_ID),first_her$Patient_ID),]
+first_lap = all_lapatinib_order_dates %>% select(c(Patient_ID,lapat_med_date)) %>% arrange(lapat_med_date)
+first_lap= first_lap[match(unique(first_lap$Patient_ID),first_lap$Patient_ID),]
+first_her_lap = inner_join(first_her,first_lap, by = "Patient_ID") %>% mutate(time_diff = difftime(lapat_med_date,med_date, units = "days")) 
+###
+# visualize all order points together
+all_herceptin_order_dates %>% filter(Patient_ID == "629998774733394") %>% dim(.)
+y = rep(0,60)
+her_order_dates = all_herceptin_order_dates %>% filter(Patient_ID == "629998774733394") %>% cbind(.,y) %>% select(med_date,y)
+all_lapatinib_order_dates %>% filter(Patient_ID == "629998774733394") %>% dim(.)
+y1 = rep(1,4)
+lap_order_dates = all_lapatinib_order_dates %>% filter(Patient_ID == "629998774733394") %>% cbind(.,y1) %>% select(lapat_med_date,y1)
+
+#create function first, then for on function
+plot_person = function(perID){
+  d = all_herceptin_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
+  y = rep(0,d[1])
+  the_her_dates = all_herceptin_order_dates %>% filter(Patient_ID == perID) %>% cbind(.,y) %>% select(med_date,y)
+  d1 = all_lapatinib_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
+  y1 = rep(1,d1[1])
+  the_lap_dates = all_lapatinib_order_dates %>% filter(Patient_ID == perID) %>% cbind(.,y1) %>% select(lapat_med_date,y1)
+  my_plot = plot(the_her_dates, pch = 19, xlim = c(),ylim = c(-0.5, 1.5))
+  points(the_lap_dates, col = "red", pch = 19)
+}
+
+pdf("patient_her_lap.pdf", h = 17, w = 17)
+par(mfrow = c(10,2))
+for (p in unique(all_herceptin_order_dates$Patient_ID)) {plot_person(p)}
+dev.off()
+
+her_lap_first_plot = ggplot() + geom_histogram(data = first_her_lap, aes(x = as.numeric(time_diff))) + labs(x = "Number of Days", y = "Count", title = "Time Difference between First Herceptin Order and First Lapatinib Order")
+her_lap_diff_dotplot = ggplot() + geom_point(data = first_her_lap, aes(x = Patient_ID, y = as.numeric(time_diff))) + labs(x = "Distinct Patients", y = "Number of Days",title = "Time Difference between First Herceptin Order and First Lapatinib Order")
+
+
+###
+# pertuzumab order times with herceptin
+all_pertuzumab_order_dates = read.csv("all_pertuzumab_order_dates.csv")
+#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `Medication_Name` like "%pertuzu%" 
+colnames(all_pertuzumab_order_dates)[3] = "pertuzu_med_date"
+colnames(all_pertuzumab_order_dates)[2] = "pertuzu_medication_name"
+all_pertuzumab_order_dates$Patient_ID = as.factor(as.character(all_pertuzumab_order_dates$Patient_ID))
+all_pertuzumab_order_dates$pertuzu_med_date = as.Date(all_pertuzumab_order_dates$pertuzu_med_date, format = "%Y-%m-%d")
+all_pertuzumab_order_dates %>% group_by(Patient_ID) %>% summarise(n = n()) %>% summarise(avg = mean(n), myMode = getmode(n), myMedian = median(n))
+# the avg is about 13 orders per person, mode is 4, median is 6
+
+# herceptin w/pertuzumab
+all_herceptin_w_pertuzu_order_dates = read.csv("all_herceptin_w_pertuzu_order_dates.csv")
+all_herceptin_w_pertuzu_order_dates$Patient_ID = as.factor(as.character(all_herceptin_w_pertuzu_order_dates$Patient_ID))
+all_herceptin_w_pertuzu_order_dates$med_date = as.Date(all_herceptin_w_pertuzu_order_dates$med_date, format = "%Y-%m-%d")
+
+#shamelessly copying/changing previous function instead of just improving it
+plot_person_pertuzu = function(perID){
+  d = all_herceptin_w_pertuzu_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
+  y = rep(0,d[1])
+  the_her_dates = all_herceptin_w_pertuzu_order_dates %>% filter(Patient_ID == perID) %>% cbind(.,y) %>% select(med_date,y)
+  d1 = all_pertuzumab_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
+  y1 = rep(1,d1[1])
+  the_pertuzu_dates = all_pertuzumab_order_dates %>% filter(Patient_ID == perID) %>% cbind(.,y1) %>% select(pertuzu_med_date,y1)
+  my_plot = plot(the_her_dates, pch = 19, ylim = c(-0.5, 1.5))
+  points(the_pertuzu_dates, col = "red", pch = 19)
+}
+
+pdf("patient_her_pertuzu.pdf", h = 17, w = 17)
+par(mfrow = c(10,2))
+for (p in unique(all_herceptin_w_pertuzu_order_dates$Patient_ID)) {plot_person_pertuzu(p)}
+dev.off()
+####
+
+#todo:
+#0. consistent x-axis for graphs. 
+#1. what is happening during the gaps in herceptin tx, surgery?
+#2. what does an order of her or laptininb mean? 1 dose, 21 doses etc?
+#4. albuterol
+
+
+#bob = full_join(all_herceptin_order_dates,all_lapatinib_order_dates) %>% filter(Patient_ID == "629998774733394",med_date == lapat_med_date)
