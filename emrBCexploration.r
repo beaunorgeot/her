@@ -12,6 +12,8 @@ modeCount <- function(v) {
   mode = paste("mode=",uniqv[which.max(tabulate(match(v, uniqv)))],"count=",max(tabulate(match(v, uniqv))), sep = " ")
   mode
 }
+# ifelse always converts dates to numeric b/c it's stupid. Create a function that preserves format (borrowed from Hadley Wickam)
+safe.ifelse <- function(cond, yes, no) {structure(ifelse(cond, yes, no), class = class(yes))}
 
 # How many total medications are women diagnosed with BC taking?
 numMedsBefore = read.csv("numberMedicationsBeforeDiagnosis.csv")
@@ -379,128 +381,10 @@ each_person = her_other_drugs %>% group_by(Patient_ID,Medication_Name) %>% summa
 #mo = her_other_drugs %>% group_by(Patient_ID) %>% distinct(Medication_Name) %>% group_by(Medication_Name) %>% summarise(n = n()) %>% arrange(desc(n))
 her_conco_drugs = her_other_drugs %>% group_by(Patient_ID) %>% distinct(Medication_Name) %>% group_by(Medication_Name) %>% summarise(n = n()) %>% arrange(desc(n))
 
-### how are lapatinib and herceptin used: concurrent, or one after the other ####
-all_lapatinib_order_dates = read.csv("all_lapatinib_order_dates.csv")
-#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `Medication_Name` like "%lapatin%" 
-colnames(all_lapatinib_order_dates)[3] = "lapat_med_date"
-colnames(all_lapatinib_order_dates)[2] = "lapat_medication_name"
-all_lapatinib_order_dates$Patient_ID = as.factor(as.character(all_lapatinib_order_dates$Patient_ID))
-all_lapatinib_order_dates$lapat_med_date = as.Date(all_lapatinib_order_dates$lapat_med_date, format = "%Y-%m-%d")
-all_lapatinib_order_dates %>% group_by(Patient_ID) %>% summarise(n = n())
-# most people in here only received 1 single order of lapatinib. The max is 8
-
-all_herceptin_order_dates = read.csv("all_herceptin_order_dates.csv")
-#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%lapatinib%") and `Medication_Name` like "%trastuzu%" 
-all_herceptin_order_dates$Patient_ID = as.factor(as.character(all_herceptin_order_dates$Patient_ID))
-all_herceptin_order_dates$med_date = as.Date(all_herceptin_order_dates$med_date, format = "%Y-%m-%d")
-# are any patients ordered the same drug more than 1x a day?
-twoXDayHer = all_herceptin_order_dates %>% group_by(Patient_ID, med_date) %>% summarise(n = n())
-table(twoXDayHer$n) # nearly all only have 1x day, but 17 people have 2x on day, and 1 person has 3x
-# remove duplicate dates for the same person
-single_all_herceptin_order_dates = all_herceptin_order_dates %>% distinct(Patient_ID, med_date)
-her_lap_time = full_join(single_all_herceptin_order_dates,all_lapatinib_order_dates, by = "Patient_ID") %>% mutate(time_diff = difftime(lapat_med_date,med_date, units = "days")) #%>% distinct(Patient_ID, lapat_med_date)
-####
-# what is the difference in time between the first hercept order date and the first lapatinib order date?
-first_her = all_herceptin_order_dates %>% select(c(Patient_ID,med_date)) %>% arrange(med_date)
-first_her= first_her[match(unique(first_her$Patient_ID),first_her$Patient_ID),]
-first_lap = all_lapatinib_order_dates %>% select(c(Patient_ID,lapat_med_date)) %>% arrange(lapat_med_date)
-first_lap= first_lap[match(unique(first_lap$Patient_ID),first_lap$Patient_ID),]
-first_her_lap = inner_join(first_her,first_lap, by = "Patient_ID") %>% mutate(time_diff = difftime(lapat_med_date,med_date, units = "days")) 
-###
-# visualize all order points together
-all_herceptin_order_dates %>% filter(Patient_ID == "629998774733394") %>% dim(.)
-y = rep(0,60)
-her_order_dates = all_herceptin_order_dates %>% filter(Patient_ID == "629998774733394") %>% cbind(.,y) %>% select(med_date,y)
-all_lapatinib_order_dates %>% filter(Patient_ID == "629998774733394") %>% dim(.)
-y1 = rep(1,4)
-lap_order_dates = all_lapatinib_order_dates %>% filter(Patient_ID == "629998774733394") %>% cbind(.,y1) %>% select(lapat_med_date,y1)
-
+### Multi-drug analysis and time lines #######
+#######################
 # ifelse always converts dates to numeric b/c it's stupid. Create a function that preserves format (borrowed from Hadley Wickam)
 safe.ifelse <- function(cond, yes, no) {structure(ifelse(cond, yes, no), class = class(yes))}
-
-# get the first and last dates of orders to set the x-axis scale
-first_her = all_herceptin_order_dates %>% select(c(Patient_ID,med_date)) %>% arrange(med_date)
-first_her= first_her[match(unique(first_her$Patient_ID),first_her$Patient_ID),]
-last_her = all_herceptin_order_dates %>% select(c(Patient_ID,med_date)) %>% arrange(desc(med_date))
-last_her= last_her[match(unique(last_her$Patient_ID),last_her$Patient_ID),]
-first_lap = all_lapatinib_order_dates %>% select(c(Patient_ID,lapat_med_date)) %>% arrange(lapat_med_date)
-first_lap= first_lap[match(unique(first_lap$Patient_ID),first_lap$Patient_ID),]
-last_lap = all_lapatinib_order_dates %>% select(c(Patient_ID,lapat_med_date)) %>% arrange(desc(lapat_med_date))
-last_lap= last_lap[match(unique(last_lap$Patient_ID),last_lap$Patient_ID),]
-first_date = safe.ifelse(first_her[1,2] < first_lap[1,2], first_her[1,2], first_lap[1,2])
-last_date = safe.ifelse(last_her[1,2] > last_lap[1,2], last_her[1,2], last_lap[1,2])
-
-#for each person, plot the dates of their herceptin orders and the dates of their lapatinib orders
-plot_person = function(perID){
-  d = all_herceptin_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
-  y = rep(0,d[1])
-  the_her_dates = all_herceptin_order_dates %>% filter(Patient_ID == perID) %>% cbind(.,y) %>% select(med_date,y)
-  d1 = all_lapatinib_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
-  y1 = rep(1,d1[1])
-  the_lap_dates = all_lapatinib_order_dates %>% filter(Patient_ID == perID) %>% cbind(.,y1) %>% select(lapat_med_date,y1)
-  #plot
-  my_plot = plot(the_her_dates, pch = 19, xlim = c(first_date,last_date),ylim = c(-0.5, 1.5))
-  points(the_lap_dates, col = "red", pch = 19)
-}
-
-pdf("test_patient_her_lap.pdf", h = 17, w = 17)
-par(mfrow = c(10,2))
-for (p in unique(all_herceptin_order_dates$Patient_ID)) {plot_person(p)}
-dev.off()
-
-her_lap_first_plot = ggplot() + geom_histogram(data = first_her_lap, aes(x = as.numeric(time_diff))) + labs(x = "Number of Days", y = "Count", title = "Time Difference between First Herceptin Order and First Lapatinib Order")
-her_lap_diff_dotplot = ggplot() + geom_point(data = first_her_lap, aes(x = Patient_ID, y = as.numeric(time_diff))) + labs(x = "Distinct Patients", y = "Number of Days",title = "Time Difference between First Herceptin Order and First Lapatinib Order")
-
-
-###
-# pertuzumab order times with herceptin
-all_pertuzumab_order_dates = read.csv("all_pertuzumab_order_dates.csv")
-#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `Medication_Name` like "%pertuzu%" 
-colnames(all_pertuzumab_order_dates)[3] = "pertuzu_med_date"
-colnames(all_pertuzumab_order_dates)[2] = "pertuzu_medication_name"
-all_pertuzumab_order_dates$Patient_ID = as.factor(as.character(all_pertuzumab_order_dates$Patient_ID))
-all_pertuzumab_order_dates$pertuzu_med_date = as.Date(all_pertuzumab_order_dates$pertuzu_med_date, format = "%Y-%m-%d")
-all_pertuzumab_order_dates %>% group_by(Patient_ID) %>% summarise(n = n()) %>% summarise(avg = mean(n), myMode = getmode(n), myMedian = median(n))
-# the avg is about 13 orders per person, mode is 4, median is 6
-
-# herceptin w/pertuzumab
-all_herceptin_w_pertuzu_order_dates = read.csv("all_herceptin_w_pertuzu_order_dates.csv")
-all_herceptin_w_pertuzu_order_dates$Patient_ID = as.factor(as.character(all_herceptin_w_pertuzu_order_dates$Patient_ID))
-all_herceptin_w_pertuzu_order_dates$med_date = as.Date(all_herceptin_w_pertuzu_order_dates$med_date, format = "%Y-%m-%d")
-
-#shamelessly copying/changing previous function instead of just improving it
-plot_person_pertuzu = function(perID){
-  d = all_herceptin_w_pertuzu_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
-  y = rep(0,d[1])
-  the_her_dates = all_herceptin_w_pertuzu_order_dates %>% filter(Patient_ID == perID) %>% cbind(.,y) %>% select(med_date,y)
-  d1 = all_pertuzumab_order_dates %>% filter(Patient_ID == perID) %>% dim(.)
-  y1 = rep(1,d1[1])
-  the_pertuzu_dates = all_pertuzumab_order_dates %>% filter(Patient_ID == perID) %>% cbind(.,y1) %>% select(pertuzu_med_date,y1)
-  my_plot = plot(the_her_dates, pch = 19, ylim = c(-0.5, 1.5))
-  points(the_pertuzu_dates, col = "red", pch = 19)
-}
-
-pdf("patient_her_pertuzu.pdf", h = 17, w = 17)
-par(mfrow = c(10,2))
-for (p in unique(all_herceptin_w_pertuzu_order_dates$Patient_ID)) {plot_person_pertuzu(p)}
-dev.off()
-####
-
-#todo:
-#0. consistent x-axis for graphs. Done, clean up the plot function to make it generic. Things on 524 all work but need updating
-#1. what is happening during the gaps in herceptin tx, surgery?
-#2. what does an order of her or laptininb mean? 1 dose, 21 doses etc?
-#4. albuterol
-
-
-#bob = full_join(all_herceptin_order_dates,all_lapatinib_order_dates) %>% filter(Patient_ID == "629998774733394",med_date == lapat_med_date)
-
-##############_________play space for functions
-t_all_lapatinib_order_dates = read.csv("all_lapatinib_order_dates.csv")
-#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `Medication_Name` like "%lapatin%" 
-colnames(t_all_lapatinib_order_dates)[3] = "med_date"
-t_all_lapatinib_order_dates$Patient_ID = as.factor(as.character(t_all_lapatinib_order_dates$Patient_ID))
-t_all_lapatinib_order_dates$med_date = as.Date(t_all_lapatinib_order_dates$med_date, format = "%Y-%m-%d")
 
 get_date_range = function(drug1, drug2){
   # drug1, drug2 should be data frames.
@@ -519,10 +403,50 @@ get_date_range = function(drug1, drug2){
   date_range = c(first_date,last_date)
   return(date_range)
 }
+# example call:
+#get_date_range(all_herceptin_order_dates,t_all_lapatinib_order_dates)
 
-juju= get_date_range(all_herceptin_order_dates,t_all_lapatinib_order_dates)
+# data
+###
+#lapatinib w/herceptin
+all_lapatinib_order_dates = read.csv("all_lapatinib_order_dates.csv")
+#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `Medication_Name` like "%lapatin%" 
+colnames(all_lapatinib_order_dates)[3] = "med_date"
+all_lapatinib_order_dates$Patient_ID = as.factor(as.character(all_lapatinib_order_dates$Patient_ID))
+all_lapatinib_order_dates$med_date = as.Date(all_lapatinib_order_dates$med_date, format = "%Y-%m-%d")
+all_lapatinib_order_dates %>% group_by(Patient_ID) %>% summarise(n = n())
+# most people in here only received 1 single order of lapatinib. The max is 8
+####
+# herceptin w/lapatinib
+all_herceptin_order_dates = read.csv("all_herceptin_order_dates.csv")
+#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%lapatinib%") and `Medication_Name` like "%trastuzu%" 
+all_herceptin_order_dates$Patient_ID = as.factor(as.character(all_herceptin_order_dates$Patient_ID))
+all_herceptin_order_dates$med_date = as.Date(all_herceptin_order_dates$med_date, format = "%Y-%m-%d")
+# are any patients ordered the same drug more than 1x a day?
+#twoXDayHer = all_herceptin_order_dates %>% group_by(Patient_ID, med_date) %>% summarise(n = n())
+#table(twoXDayHer$n) # nearly all only have 1x day, but 17 people have 2x on day, and 1 person has 3x
+# remove duplicate dates for the same person
+#single_all_herceptin_order_dates = all_herceptin_order_dates %>% distinct(Patient_ID, med_date)
+#her_lap_time = full_join(single_all_herceptin_order_dates,all_lapatinib_order_dates, by = "Patient_ID") %>% mutate(time_diff = difftime(lapat_med_date,med_date, units = "days")) #%>% distinct(Patient_ID, lapat_med_date)
+####
 
-a_plot_person = function(perID,drug1,drug2){
+# pertuzumab order times with herceptin
+all_pertuzumab_order_dates = read.csv("all_pertuzumab_order_dates.csv")
+#select `Patient_ID`, `Medication_Name`, `Medication_Order_Ordered_Date2` as med_date from `MEDICATION_ORDERS` where `Patient_ID` in (select `Patient_ID` from `MEDICATION_ORDERS` where `Medication_Name` like "%trastuzu%") and `Medication_Name` like "%pertuzu%" 
+colnames(all_pertuzumab_order_dates)[3] = "med_date"
+all_pertuzumab_order_dates$Patient_ID = as.factor(as.character(all_pertuzumab_order_dates$Patient_ID))
+all_pertuzumab_order_dates$med_date = as.Date(all_pertuzumab_order_dates$med_date, format = "%Y-%m-%d")
+all_pertuzumab_order_dates %>% group_by(Patient_ID) %>% summarise(n = n()) %>% summarise(avg = mean(n), myMode = getmode(n), myMedian = median(n))
+# the avg is about 13 orders per person, mode is 4, median is 6
+
+# herceptin w/pertuzumab
+all_herceptin_w_pertuzu_order_dates = read.csv("all_herceptin_w_pertuzu_order_dates.csv")
+all_herceptin_w_pertuzu_order_dates$Patient_ID = as.factor(as.character(all_herceptin_w_pertuzu_order_dates$Patient_ID))
+all_herceptin_w_pertuzu_order_dates$med_date = as.Date(all_herceptin_w_pertuzu_order_dates$med_date, format = "%Y-%m-%d")
+
+####
+
+plot_person = function(perID,drug1,drug2){
   d1 = drug1 %>% filter(Patient_ID == perID) %>% dim(.)
   y = rep(0,d1[1])
   the_drug1_dates = drug1 %>% filter(Patient_ID == perID) %>% cbind(.,y) %>% select(med_date,y)
@@ -533,8 +457,34 @@ a_plot_person = function(perID,drug1,drug2){
   my_plot = plot(the_drug1_dates, pch = 19, xlim = get_date_range(drug1,drug2),ylim = c(-0.5, 1.5))
   points(the_drug2_dates, col = "red", pch = 19)
 }
-
-pdf("test_patient_her_lap.pdf", h = 17, w = 17)
+# there are also graphs w/o test_ that contain the data w/o the fixed time line. The fixed timeline provides consistency but does also compress the points
+# to go back to the original plotting, simply remove the xlim argument in plot_person()
+pdf("test_patient_her_lap.pdf", h = 17, w = 17) 
 par(mfrow = c(10,2))
-for (p in unique(all_herceptin_order_dates$Patient_ID)) {a_plot_person(p,all_herceptin_order_dates,t_all_lapatinib_order_dates)}
+for (p in unique(all_herceptin_order_dates$Patient_ID)) {plot_person(p,all_herceptin_order_dates,all_lapatinib_order_dates)}
 dev.off()
+
+pdf("test_patient_her_pertuzu.pdf", h = 17, w = 17)
+par(mfrow = c(10,2))
+for (p in unique(all_herceptin_w_pertuzu_order_dates$Patient_ID)) {plot_person(p,all_herceptin_w_pertuzu_order_dates,all_pertuzumab_order_dates)}
+dev.off()
+
+#her_lap_first_plot = ggplot() + geom_histogram(data = first_her_lap, aes(x = as.numeric(time_diff))) + labs(x = "Number of Days", y = "Count", title = "Time Difference between First Herceptin Order and First Lapatinib Order")
+#her_lap_diff_dotplot = ggplot() + geom_point(data = first_her_lap, aes(x = Patient_ID, y = as.numeric(time_diff))) + labs(x = "Distinct Patients", y = "Number of Days",title = "Time Difference between First Herceptin Order and First Lapatinib Order")
+
+
+####
+
+#todo:
+#0. clean up date/plotting stuff using the new generics and replacing all else
+# - re-plot and re-enter pertuzu and fix naming etc on all: her, lap, per
+#1. what is happening during the gaps in herceptin tx, surgery?
+#2. what does an order of her or laptininb mean? 1 dose, 21 doses etc?
+#4. albuterol
+
+
+#bob = full_join(all_herceptin_order_dates,all_lapatinib_order_dates) %>% filter(Patient_ID == "629998774733394",med_date == lapat_med_date)
+
+##############_________play space for functions ### expect to cut all below
+
+
