@@ -476,15 +476,32 @@ dev.off()
 ####
 
 #todo:
-#0. clean up date/plotting stuff using the new generics and replacing all else
-# - re-plot and re-enter pertuzu and fix naming etc on all: her, lap, per
-#1. what is happening during the gaps in herceptin tx, surgery?
+#1. what is happening during the gaps in herceptin tx, surgery? -ignoring for now. Seems to speculative
 #2. what does an order of her or laptininb mean? 1 dose, 21 doses etc?
+her_between_orders = all_herceptin_order_dates %>% group_by(Patient_ID) %>% arrange(med_date) %>% mutate(or_diff = difftime(med_date,lag(med_date), units = "days"))
+lap_between_orders = all_lapatinib_order_dates %>% group_by(Patient_ID) %>% arrange(med_date) %>% mutate(or_diff = difftime(med_date,lag(med_date), units = "days"))
+per_between_orders = all_pertuzumab_order_dates %>% group_by(Patient_ID) %>% arrange(med_date) %>% mutate(or_diff = difftime(med_date,lag(med_date), units = "days"))
 #4. albuterol
-
+# albuterol could shrink tumors? http://www.ncbi.nlm.nih.gov/pubmed/22122228 
+# http://www.cancernetwork.com/breast-cancer/dyspnea-common-symptom-lung-breast-cancer
+# The second tumor group in which dyspnea most commonly occurs is breast cancer. In this group, breathing problems are caused by pleural effusions rather than by a blockage in the lungs.
+# Chemotherapy drugs can cause pulmonary toxicity and produce dyspnea. Bleomycin (Blenoxane) may be particularly harmful because it can infiltrate interstitial tissues and lead to pulmonary fibrosis.
+# Biologic response modifiers (such as interleukin-2) can cause a shift in the pulmonary fluids, which can lead to dyspnea.
+# Radiation delivered to the chest can cause pulmonary compromise
+# Dyspnea is typically treated with medications, such as albuterol, administered through a bronchial dilator
 
 #bob = full_join(all_herceptin_order_dates,all_lapatinib_order_dates) %>% filter(Patient_ID == "629998774733394",med_date == lapat_med_date)
 
-##############_________play space for functions ### expect to cut all below
+#############################
+# cohort selection
+reference_cohort_1 = read.csv("reference_cohort_1.csv")
+#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE`, `DIAGNOSES` where `ICD9_Code` <> "174.9" and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_ID` = `DIAGNOSES`.`Patient_ID` and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 7528
+reference_cohort_1$Patient_ID = as.factor(as.character(reference_cohort_1$Patient_ID))
+bc_cohort_1 = read.csv("bc_cohort_1.csv")
+#select distinct `DIAGNOSES`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE`, `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and `PATIENTS`.`Patient_ID` = `DIAGNOSES`.`Patient_ID` and `DIAGNOSES`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` 
+length(unique(bc_cohort_1$Patient_ID))
+bc_cohort_1$Patient_ID = as.factor(as.character(bc_cohort_1$Patient_ID))
+bc_cohort_1 = bc_cohort_1 %>% distinct(Patient_ID) #dim(bc_cohort_1) = 7528. Got correct number now. not sure what happened.
 
+# Next, run stat tests on age, race, and smoking status to make sure that the 2 groups are comparable.
 
