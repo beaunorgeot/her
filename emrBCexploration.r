@@ -495,13 +495,75 @@ per_between_orders = all_pertuzumab_order_dates %>% group_by(Patient_ID) %>% arr
 #############################
 # cohort selection
 reference_cohort_1 = read.csv("reference_cohort_1.csv")
-#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE`, `DIAGNOSES` where `ICD9_Code` <> "174.9" and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_ID` = `DIAGNOSES`.`Patient_ID` and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 7528
+#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE` where `PATIENTS`.`Patient_ID` not in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9") and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_Smoking_Status` not in ("*Unspecified", "") and `PATIENT_RACE`.`Patient_Race` not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 6148
 reference_cohort_1$Patient_ID = as.factor(as.character(reference_cohort_1$Patient_ID))
+
 bc_cohort_1 = read.csv("bc_cohort_1.csv")
 #select distinct `DIAGNOSES`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE`, `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and `PATIENTS`.`Patient_ID` = `DIAGNOSES`.`Patient_ID` and `DIAGNOSES`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` 
 length(unique(bc_cohort_1$Patient_ID))
 bc_cohort_1$Patient_ID = as.factor(as.character(bc_cohort_1$Patient_ID))
 bc_cohort_1 = bc_cohort_1 %>% distinct(Patient_ID) #dim(bc_cohort_1) = 7528. Got correct number now. not sure what happened.
+#remove patients that don't have values for race or
+#REMOVE MALE PATIENTS FROM BC COHORT WHEN COMPARING TO GENERAL POPULATION
+bc_cohort_general = bc_cohort_1 %>% filter(!Patient_Race %in% c("Other", "Unknown/Declined"), Patient_Sex == "Female") #6148 patients left (all males are actually removed by getting rid of Other/Unknown race)
+bc_cohort_general = droplevels(bc_cohort_general)
+
+#combine smoking levels into something that makes more sense: never, light, heavy, unknown
+# heavy = (current every day, heavy tobacco smoker)
+# light = (current some day, former smoker, light tobacco smoker, )
+# never = (Never smoker, passive smoke exposure never smoker)
+# unknown = (Never assessed, smoker current status unknown, unknown if ever smoked)
+reference_cohort_1[reference_cohort_1$Patient_Smoking_Status == 'Current Every Day Smoker', 'Patient_Smoking_Status'] = "Heavy Tobacco Smoker"
+reference_cohort_1[reference_cohort_1$Patient_Smoking_Status == 'Current Some Day Smoker', 'Patient_Smoking_Status'] = "Light Tobacco Smoker"
+reference_cohort_1[reference_cohort_1$Patient_Smoking_Status == 'Former Smoker', 'Patient_Smoking_Status'] = "Light Tobacco Smoker"
+reference_cohort_1[reference_cohort_1$Patient_Smoking_Status == 'Passive Smoke Exposure - Never Smoker', 'Patient_Smoking_Status'] = "Never Smoker"
+reference_cohort_1[reference_cohort_1$Patient_Smoking_Status == 'Smoker, Current Status Unknown', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
+reference_cohort_1[reference_cohort_1$Patient_Smoking_Status == 'Never Assessed', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
+reference_cohort_1 = droplevels(reference_cohort_1)
+#
+bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == 'Current Every Day Smoker', 'Patient_Smoking_Status'] = "Heavy Tobacco Smoker"
+bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == 'Current Some Day Smoker', 'Patient_Smoking_Status'] = "Light Tobacco Smoker"
+bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == 'Former Smoker', 'Patient_Smoking_Status'] = "Light Tobacco Smoker"
+bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == 'Passive Smoke Exposure - Never Smoker', 'Patient_Smoking_Status'] = "Never Smoker"
+bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == 'Smoker, Current Status Unknown', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
+bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == 'Never Assessed', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
+bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == '*Unspecified', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
+bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == '', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
+bc_cohort_general = droplevels(bc_cohort_general)
+# why doesn't the below work the same?###
+tmp2 = reference_cohort_1
+tmp2 = tmp2 %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Current Every Day Smoker', "Heavy Tobacco Smoker",Patient_Smoking_Status))
+#######
 
 # Next, run stat tests on age, race, and smoking status to make sure that the 2 groups are comparable.
+race = as.data.frame(rbind(table(reference_cohort_1$Patient_Race), table(bc_cohort_general$Patient_Race)))
+race = race %>% mutate(SUM = rowSums(.))
+rownames(race) = c("reference", "bc")
+chi_race = chisq.test(race, correct = T)
+#
+smoke = as.data.frame(rbind(table(reference_cohort_1$Patient_Smoking_Status), table(bc_cohort_general$Patient_Smoking_Status)))
+smoke = smoke %>% mutate(SUM = rowSums(.))
+rownames(smoke) = c("reference", "bc")
+chi_smoke = chisq.test(smoke, correct = T)
 
+#todo
+#1. Is is a good idea to subquery by each racial category to ensure that race is perfectly controlled for? If do this, will loose any effect that race might have on likelyhood of getting BC
+# NOTE: MIGHT BE VERY INTERESTING TO SEE IF THERE IS ANYTHING ABOUT MALE BC WHEN COMPARING BC SUBTYPES (go back to bc_cohort_1)
+
+################# resetting factors play space #########
+#####
+#tmp = reference_cohort_1
+#tmp[tmp$Patient_Race=='*Unspecified', 'Patient_Race'] = 'Other'  # if a row value is equal to Unspecificied, set the value to Other
+#tmp = droplevels(tmp) # remove empty levels
+#levels(tmp$Patient_Race)
+
+#####
+
+reference_cohort_1 = replace(reference_cohort_1, reference_cohort_1 == "*Unspecified", NA)
+reference_cohort_1 = as.data.frame(lapply(
+  reference_cohort_1, 
+  function(x) factor(as.character(x), levels=levels(x)[levels(x) != "*Unspecified"])
+))
+
+#reference_cohort_1_t = reference_cohort_1 %>% mutate(Patient_Race = ifelse(is.na(Patient_Race),"Other",Patient_Race)) #neither did this
+reference_cohort_1 = reference_cohort_1 %>% mutate(Patient_Race = replace(reference_cohort_1$Patient_Race, is.na(reference_cohort_1$Patient_Race), "Other")) #works
