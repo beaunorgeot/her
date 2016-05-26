@@ -495,7 +495,7 @@ per_between_orders = all_pertuzumab_order_dates %>% group_by(Patient_ID) %>% arr
 #############################
 # cohort selection
 reference_cohort_1 = read.csv("reference_cohort_1.csv")
-#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE` where `PATIENTS`.`Patient_ID` not in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9") and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_Smoking_Status` not in ("*Unspecified", "") and `PATIENT_RACE`.`Patient_Race` not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 6148
+#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE` where `PATIENTS`.`Patient_ID` not in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9") and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_Smoking_Status` not in ("*Unspecified", "") and `PATIENT_RACE`.`Patient_Race` not in ("Other", "Unknown/Declined", "*Unspecified") and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 6112
 reference_cohort_1$Patient_ID = as.factor(as.character(reference_cohort_1$Patient_ID))
 
 bc_cohort_1 = read.csv("bc_cohort_1.csv")
@@ -505,7 +505,7 @@ bc_cohort_1$Patient_ID = as.factor(as.character(bc_cohort_1$Patient_ID))
 bc_cohort_1 = bc_cohort_1 %>% distinct(Patient_ID) #dim(bc_cohort_1) = 7528. Got correct number now. not sure what happened.
 #remove patients that don't have values for race or
 #REMOVE MALE PATIENTS FROM BC COHORT WHEN COMPARING TO GENERAL POPULATION
-bc_cohort_general = bc_cohort_1 %>% filter(!Patient_Race %in% c("Other", "Unknown/Declined"), Patient_Sex == "Female") #6148 patients left (all males are actually removed by getting rid of Other/Unknown race)
+bc_cohort_general = bc_cohort_1 %>% filter(!Patient_Race %in% c("Other", "Unknown/Declined"), Patient_Sex == "Female") #6112 patients left 
 bc_cohort_general = droplevels(bc_cohort_general)
 
 #combine smoking levels into something that makes more sense: never, light, heavy, unknown
@@ -531,39 +531,61 @@ bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == '*Unspecified', 'P
 bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == '', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
 bc_cohort_general = droplevels(bc_cohort_general)
 # why doesn't the below work the same?###
+# this process will work, but reorders the factor levels. 
 tmp2 = reference_cohort_1
-tmp2 = tmp2 %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Current Every Day Smoker', "Heavy Tobacco Smoker",Patient_Smoking_Status))
+me = tmp2 %>% mutate(crap = ifelse(Patient_Smoking_Status == 'Current Every Day Smoker', "Heavy Tobacco Smoker",as.character(Patient_Smoking_Status)))
+me = tmp2 %>% mutate(crap = ifelse(Patient_Smoking_Status == 'Current Some Day Smoker'| Patient_Smoking_Status == "Former Smoker", "Light Tobacco Smoker",as.character(Patient_Smoking_Status)))
+me$crap = as.factor(me$crap)
 #######
 
-# Next, run stat tests on age, race, and smoking status to make sure that the 2 groups are comparable.
-race = as.data.frame(rbind(table(reference_cohort_1$Patient_Race), table(bc_cohort_general$Patient_Race)))
-race = race %>% mutate(SUM = rowSums(.))
-rownames(race) = c("reference", "bc")
-chi_race = chisq.test(race, correct = T)
+# Next, run stat tests on age, race, and smoking status and age
+#I'm dubious that the p values for age and smoke are identical. Ahh hah, 2.2e-16 is the limit for smallest floating point value to be printed
+# smaller p-values can be obtained by calling p-value directly: t.test(bc_cohort_general$Patient_Age,reference_cohort_1$Patient_Age)$p.value
+race_1 = as.data.frame(rbind(table(reference_cohort_1$Patient_Race), table(bc_cohort_general$Patient_Race)))
+race_1 = race %>% mutate(SUM = rowSums(.))
+rownames(race_1) = c("reference", "bc")
+chi_race_1 = chisq.test(race_1, correct = T) #p-value = 1.015e-12
+#chi_race$expected
+RACE = table(reference_cohort_1$Patient_Race,bc_cohort_general$Patient_Race)
+# is bar plot failing b/c df and not table?
+#TAB = table(reference_cohort_1$Patient_Race, reference_cohort_1$Patient_Smoking_Status)
+#barplot(TAB, beside = T, legend = T)
+barplot(RACE, beside = T, legend = T)
+chi_RACE = chisq.test(RACE) #p-value = 0.1376
+
 #
-smoke = as.data.frame(rbind(table(reference_cohort_1$Patient_Smoking_Status), table(bc_cohort_general$Patient_Smoking_Status)))
-smoke = smoke %>% mutate(SUM = rowSums(.))
-rownames(smoke) = c("reference", "bc")
-chi_smoke = chisq.test(smoke, correct = T)
+smoke_1 = as.data.frame(rbind(table(reference_cohort_1$Patient_Smoking_Status), table(bc_cohort_general$Patient_Smoking_Status)))
+smoke_1 = smoke_1 %>% mutate(SUM = rowSums(.))
+rownames(smoke_1) = c("reference", "bc")
+chi_smoke = chisq.test(smoke_1, correct = T) #p-value < 2.2e-16
+
+mean(bc_cohort_general$Patient_Age) #60.33655
+mean(reference_cohort_1$Patient_Age) #52.8027
+t.test(bc_cohort_general$Patient_Age,reference_cohort_1$Patient_Age) # p-value < 2.2e-16
+
+############
+#reference again:
+American_Indian_reference_cohort = read.csv("American_Indian_reference_cohort.csv")
+#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE` where `PATIENTS`.`Patient_ID` not in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9") and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_Smoking_Status` not in ("*Unspecified", "") and `PATIENT_RACE`.`Patient_Race` = "American Indian or Alaska Native" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 35
+Asian_reference_cohort = read.csv("Asian_reference_cohort.csv")
+#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE` where `PATIENTS`.`Patient_ID` not in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9") and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_Smoking_Status` not in ("*Unspecified", "") and `PATIENT_RACE`.`Patient_Race` = "Asian" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 1101
+Black_reference_cohort = read.csv("Black_reference_cohort.csv")
+#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE` where `PATIENTS`.`Patient_ID` not in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9") and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_Smoking_Status` not in ("*Unspecified", "") and `PATIENT_RACE`.`Patient_Race` = "Black or African American" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 455
+Hawaiian_reference_cohort = read.csv("Hawaiian_reference_cohort.csv")
+#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE` where `PATIENTS`.`Patient_ID` not in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9") and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_Smoking_Status` not in ("*Unspecified", "") and `PATIENT_RACE`.`Patient_Race` = "Native Hawaiian or Other Pacific Islander" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 147
+White_reference_cohort = read.csv("White_reference_cohort.csv")
+#select distinct `PATIENTS`.`Patient_ID`, `PATIENTS`.`Patient_Age`, `PATIENTS`.`Patient_Sex`, `PATIENT_RACE`.`Patient_Race`,`PATIENTS`.`Patient_Smoking_Status` from `PATIENTS`,`PATIENT_RACE` where `PATIENTS`.`Patient_ID` not in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9") and `Patient_Sex`= "Female" and `Patient_Age` > 25 and `PATIENTS`.`Patient_Smoking_Status` not in ("*Unspecified", "") and `PATIENT_RACE`.`Patient_Race` = "White or Caucasian" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` order by rand() limit 4374
+
+races_reference_cohort = rbind_list(American_Indian_reference_cohort,Asian_reference_cohort,Black_reference_cohort,Hawaiian_reference_cohort,White_reference_cohort) %>% select(-Patient_Sex)
+races_reference_cohort$Patient_Race = as.factor(races_reference_cohort$Patient_Race)
+races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Current Every Day Smoker', "Heavy Tobacco Smoker",Patient_Smoking_Status))
+races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Current Some Day Smoker'| Patient_Smoking_Status == "Former Smoker", "Light Tobacco Smoker",Patient_Smoking_Status))
+races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Passive Smoke Exposure - Never Smoker', "Never Smoker",Patient_Smoking_Status))
+races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Smoker, Current Status Unknown'| Patient_Smoking_Status == "Never Assessed" | Patient_Smoking_Status == "*Unspecified" | Patient_Smoking_Status == "", "Unknown If Ever Smoked",Patient_Smoking_Status))
+
+races_reference_cohort$Patient_Smoking_Status = as.factor(races_reference_cohort$Patient_Smoking_Status)
 
 #todo
 #1. Is is a good idea to subquery by each racial category to ensure that race is perfectly controlled for? If do this, will loose any effect that race might have on likelyhood of getting BC
 # NOTE: MIGHT BE VERY INTERESTING TO SEE IF THERE IS ANYTHING ABOUT MALE BC WHEN COMPARING BC SUBTYPES (go back to bc_cohort_1)
 
-################# resetting factors play space #########
-#####
-#tmp = reference_cohort_1
-#tmp[tmp$Patient_Race=='*Unspecified', 'Patient_Race'] = 'Other'  # if a row value is equal to Unspecificied, set the value to Other
-#tmp = droplevels(tmp) # remove empty levels
-#levels(tmp$Patient_Race)
-
-#####
-
-reference_cohort_1 = replace(reference_cohort_1, reference_cohort_1 == "*Unspecified", NA)
-reference_cohort_1 = as.data.frame(lapply(
-  reference_cohort_1, 
-  function(x) factor(as.character(x), levels=levels(x)[levels(x) != "*Unspecified"])
-))
-
-#reference_cohort_1_t = reference_cohort_1 %>% mutate(Patient_Race = ifelse(is.na(Patient_Race),"Other",Patient_Race)) #neither did this
-reference_cohort_1 = reference_cohort_1 %>% mutate(Patient_Race = replace(reference_cohort_1$Patient_Race, is.na(reference_cohort_1$Patient_Race), "Other")) #works
