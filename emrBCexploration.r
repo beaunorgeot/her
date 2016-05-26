@@ -611,8 +611,10 @@ all_comorbid_bc_cohort_general = read.csv("all_comorbid_bc_cohort_general.csv")
 byPatient_comorbid_bc_cohort_general = read.csv("byPatient_comorbid_bc_cohort_general.csv")
 # select `DIAGNOSES`.`Patient_ID`, `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct PATIENTS.`Patient_ID` from `PATIENTS`,`PATIENT_RACE` where PATIENTS.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and PATIENTS.`Patient_ID` not in ("796887201257050", "198259877972305", "211516019422561", "813369655981660", "573151760734618", "35229234490544",  "620538185350597", "259266504086554","189134215470403", "88734864722937",  "821811892092228", "770099472720176", "76906170696020" ) and `PATIENT_RACE`.`Patient_Race`not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_Sex` = "Female" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` ) GROUP BY `DIAGNOSES`.`Patient_ID`,`DIAGNOSES`.`ICD9_Code` having numOccur > 1
 length(unique(byPatient_comorbid_bc_cohort_general$ICD9_Code)) #there are 4465 unique codes
-icd9_prevelance = byPatient_comorbid_bc_cohort_general %>% mutate(counter = rep.int(1,length(byPatient_comorbid_bc_cohort_general$numOccur))) %>% select(Diagnosis_Name, ICD9_Code, counter) %>% group_by(ICD9_Code) %>% summarise(SUM = sum(counter), ratio = SUM/6112) %>% arrange(desc(SUM))
-
+icd9_prevelance = byPatient_comorbid_bc_cohort_general %>% mutate(counter = rep.int(1,length(byPatient_comorbid_bc_cohort_general$numOccur))) %>% select(Diagnosis_Name, ICD9_Code, counter) %>% group_by(ICD9_Code) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
+map_icd9 = byPatient_comorbid_bc_cohort_general %>% distinct(ICD9_Code) %>% select(-c(Patient_ID,numOccur))
+icd9_prevelance = inner_join(icd9_prevelance, map_icd9)
+icd9_prevelance = icd9_prevelance[,c(4,1,2,3)]
 #todo
 #1. Is is a good idea to subquery by each racial category to ensure that race is perfectly controlled for? If do this, will loose any effect that race might have on likelyhood of getting BC
 # NOTE: MIGHT BE VERY INTERESTING TO SEE IF THERE IS ANYTHING ABOUT MALE BC WHEN COMPARING BC SUBTYPES (go back to bc_cohort_1)
