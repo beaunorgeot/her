@@ -579,7 +579,7 @@ races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Statu
 races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Smoker, Current Status Unknown'| Patient_Smoking_Status == "Never Assessed" | Patient_Smoking_Status == "*Unspecified" | Patient_Smoking_Status == "", "Unknown If Ever Smoked",Patient_Smoking_Status))
 races_reference_cohort$Patient_Smoking_Status = as.factor(races_reference_cohort$Patient_Smoking_Status)
 
-reference_ids = races_reference_cohort$Patient_ID
+reference_ids = races_reference_cohort %>% select(Patient_ID)
 write.csv(reference_ids, file = "reference_ids.csv")
 ## stat tests on demographics
 race = as.data.frame(rbind(table(races_reference_cohort$Patient_Race), table(bc_cohort_general$Patient_Race)))
@@ -588,23 +588,46 @@ rownames(race) = c("reference", "bc")
 # breast cancer does not affect races proportionally
 chi_race = chisq.test(race, correct = T) #p.value =1.757243e-09
 # there are more whites in the BC group than expected, and less of every other race type than expected.
+# PLOT race
+library(reshape2)
+race_m = race %>% mutate(isReference = c(1,0)) %>% select(-SUM)
+race_m = melt(race_m, id.vars = "isReference")
+names(race_m) = c("isReference", "race", "count")
+race_m = race_m %>% mutate(race = ifelse(isReference == 1, paste(race, "ref", sep = "_"),as.character(race))) %>% select(-isReference)
+#to arrange the bars to go from high --> low use reorder() to change the levels of the factor to be based on some other column
+race_plot = ggplot() + geom_bar(data = race_m, aes(x = reorder(race,-count), count, fill = race), stat = "identity") + theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
 
+#smoking
 smoke = as.data.frame(rbind(table(races_reference_cohort$Patient_Smoking_Status), table(bc_cohort_general$Patient_Smoking_Status)))
 smoke = smoke %>% mutate(SUM = rowSums(.))
 rownames(smoke) = c("reference", "bc")
 #smoking status is not what would be expected
 chi_smoke = chisq.test(smoke, correct = T) #p.value = 4.821095e-23
 #less heavy smokers and never smokers than expected in BC, more light smokers than expected
+#PLOT smoke
+smoke_m = smoke %>% mutate(isReference = c(1,0)) %>% select(-SUM)
+smoke_m = melt(smoke_m, id.vars = "isReference")
+names(smoke_m) = c("isReference", "smoke", "count")
+smoke_m = smoke_m %>% mutate(smoke = ifelse(isReference == 1, paste(smoke, "ref", sep = "_"),as.character(smoke))) %>% select(-isReference)
+#to arrange the bars to go from high --> low use reorder() to change the levels of the factor to be based on some other column
+smoke_plot = ggplot() + geom_bar(data = smoke_m, aes(x = reorder(smoke,-count), count, fill = smoke), stat = "identity") + theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
 
+#age
 mean(bc_cohort_general$Patient_Age) #60.33655
 mean(races_reference_cohort$Patient_Age) #53.02
 age = t.test(bc_cohort_general$Patient_Age,races_reference_cohort$Patient_Age) #pvalue =  4.953749e-155
-# BC patients are younger than the general audience. 
+# with a few outliers, BC patients are older than the general audience. 
+#PLOT age
+bc_tmp = as.data.frame(bc_cohort_general$Patient_Age) %>%  mutate(study = rep("bc",length(bc_cohort_general$Patient_Age)))
+names(bc_tmp) = c("age","study") # special character in name didn't work for rename()
+ref_tmp = as.data.frame(races_reference_cohort$Patient_Age) %>% mutate(study = rep("ref",length(races_reference_cohort$Patient_Age)))
+names(ref_tmp) = c("age","study")
+age_df = rbind(bc_tmp, ref_tmp) %>% mutate(study = as.factor(study))
+age_plot = ggplot() + geom_boxplot(data = age_df, aes(x = study, y = age, color = study), notch = T)
 
 # tomorrow
 # could do histograms/plots for race, smoking, age between the groups
 # comorbities for all BC and all reference (complete patient history)
-# note: when looking w/in BC should I look at both complete patient history AND repeat looking only at comorbdidities/drugs after diagnosis?
 all_comorbid_bc_cohort_general = read.csv("all_comorbid_bc_cohort_general.csv")
 #select distinct `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct PATIENTS.`Patient_ID` from `PATIENTS`,`PATIENT_RACE` where PATIENTS.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and PATIENTS.`Patient_ID` not in ("796887201257050", "198259877972305", "211516019422561", "813369655981660", "573151760734618", "35229234490544",  "620538185350597", "259266504086554","189134215470403", "88734864722937",  "821811892092228", "770099472720176", "76906170696020" ) and `PATIENT_RACE`.`Patient_Race`not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_Sex` = "Female" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` ) GROUP BY `DIAGNOSES`.`ICD9_Code` having numOccur > 5 ORDER BY numOccur desc 
 
@@ -618,4 +641,4 @@ icd9_prevelance = icd9_prevelance[,c(4,1,2,3)]
 #todo
 #1. Is is a good idea to subquery by each racial category to ensure that race is perfectly controlled for? If do this, will loose any effect that race might have on likelyhood of getting BC
 # NOTE: MIGHT BE VERY INTERESTING TO SEE IF THERE IS ANYTHING ABOUT MALE BC WHEN COMPARING BC SUBTYPES (go back to bc_cohort_1)
-
+# note: when looking w/in BC should I look at both complete patient history AND repeat looking only at comorbdidities/drugs after diagnosis?
