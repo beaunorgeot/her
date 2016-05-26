@@ -530,19 +530,14 @@ bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == 'Never Assessed', 
 bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == '*Unspecified', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
 bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == '', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
 bc_cohort_general = droplevels(bc_cohort_general)
-# why doesn't the below work the same?###
-# this process will work, but reorders the factor levels. 
-tmp2 = reference_cohort_1
-me = tmp2 %>% mutate(crap = ifelse(Patient_Smoking_Status == 'Current Every Day Smoker', "Heavy Tobacco Smoker",as.character(Patient_Smoking_Status)))
-me = tmp2 %>% mutate(crap = ifelse(Patient_Smoking_Status == 'Current Some Day Smoker'| Patient_Smoking_Status == "Former Smoker", "Light Tobacco Smoker",as.character(Patient_Smoking_Status)))
-me$crap = as.factor(me$crap)
+
 #######
 
 # Next, run stat tests on age, race, and smoking status and age
 #I'm dubious that the p values for age and smoke are identical. Ahh hah, 2.2e-16 is the limit for smallest floating point value to be printed
 # smaller p-values can be obtained by calling p-value directly: t.test(bc_cohort_general$Patient_Age,reference_cohort_1$Patient_Age)$p.value
 race_1 = as.data.frame(rbind(table(reference_cohort_1$Patient_Race), table(bc_cohort_general$Patient_Race)))
-race_1 = race %>% mutate(SUM = rowSums(.))
+race_1 = race_1 %>% mutate(SUM = rowSums(.))
 rownames(race_1) = c("reference", "bc")
 chi_race_1 = chisq.test(race_1, correct = T) #p-value = 1.015e-12
 #chi_race$expected
@@ -582,8 +577,41 @@ races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Statu
 races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Current Some Day Smoker'| Patient_Smoking_Status == "Former Smoker", "Light Tobacco Smoker",Patient_Smoking_Status))
 races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Passive Smoke Exposure - Never Smoker', "Never Smoker",Patient_Smoking_Status))
 races_reference_cohort = races_reference_cohort %>% mutate(Patient_Smoking_Status = ifelse(Patient_Smoking_Status == 'Smoker, Current Status Unknown'| Patient_Smoking_Status == "Never Assessed" | Patient_Smoking_Status == "*Unspecified" | Patient_Smoking_Status == "", "Unknown If Ever Smoked",Patient_Smoking_Status))
-
 races_reference_cohort$Patient_Smoking_Status = as.factor(races_reference_cohort$Patient_Smoking_Status)
+
+reference_ids = races_reference_cohort$Patient_ID
+write.csv(reference_ids, file = "reference_ids.csv")
+## stat tests on demographics
+race = as.data.frame(rbind(table(races_reference_cohort$Patient_Race), table(bc_cohort_general$Patient_Race)))
+race = race %>% mutate(SUM = rowSums(.))
+rownames(race) = c("reference", "bc")
+# breast cancer does not affect races proportionally
+chi_race = chisq.test(race, correct = T) #p.value =1.757243e-09
+# there are more whites in the BC group than expected, and less of every other race type than expected.
+
+smoke = as.data.frame(rbind(table(races_reference_cohort$Patient_Smoking_Status), table(bc_cohort_general$Patient_Smoking_Status)))
+smoke = smoke %>% mutate(SUM = rowSums(.))
+rownames(smoke) = c("reference", "bc")
+#smoking status is not what would be expected
+chi_smoke = chisq.test(smoke, correct = T) #p.value = 4.821095e-23
+#less heavy smokers and never smokers than expected in BC, more light smokers than expected
+
+mean(bc_cohort_general$Patient_Age) #60.33655
+mean(races_reference_cohort$Patient_Age) #53.02
+age = t.test(bc_cohort_general$Patient_Age,races_reference_cohort$Patient_Age) #pvalue =  4.953749e-155
+# BC patients are younger than the general audience. 
+
+# tomorrow
+# could do histograms/plots for race, smoking, age between the groups
+# comorbities for all BC and all reference (complete patient history)
+# note: when looking w/in BC should I look at both complete patient history AND repeat looking only at comorbdidities/drugs after diagnosis?
+all_comorbid_bc_cohort_general = read.csv("all_comorbid_bc_cohort_general.csv")
+#select distinct `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct PATIENTS.`Patient_ID` from `PATIENTS`,`PATIENT_RACE` where PATIENTS.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and PATIENTS.`Patient_ID` not in ("796887201257050", "198259877972305", "211516019422561", "813369655981660", "573151760734618", "35229234490544",  "620538185350597", "259266504086554","189134215470403", "88734864722937",  "821811892092228", "770099472720176", "76906170696020" ) and `PATIENT_RACE`.`Patient_Race`not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_Sex` = "Female" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` ) GROUP BY `DIAGNOSES`.`ICD9_Code` having numOccur > 5 ORDER BY numOccur desc 
+
+byPatient_comorbid_bc_cohort_general = read.csv("byPatient_comorbid_bc_cohort_general.csv")
+# select `DIAGNOSES`.`Patient_ID`, `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct PATIENTS.`Patient_ID` from `PATIENTS`,`PATIENT_RACE` where PATIENTS.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and PATIENTS.`Patient_ID` not in ("796887201257050", "198259877972305", "211516019422561", "813369655981660", "573151760734618", "35229234490544",  "620538185350597", "259266504086554","189134215470403", "88734864722937",  "821811892092228", "770099472720176", "76906170696020" ) and `PATIENT_RACE`.`Patient_Race`not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_Sex` = "Female" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` ) GROUP BY `DIAGNOSES`.`Patient_ID`,`DIAGNOSES`.`ICD9_Code` having numOccur > 1
+length(unique(byPatient_comorbid_bc_cohort_general$ICD9_Code)) #there are 4465 unique codes
+icd9_prevelance = byPatient_comorbid_bc_cohort_general %>% mutate(counter = rep.int(1,length(byPatient_comorbid_bc_cohort_general$numOccur))) %>% select(Diagnosis_Name, ICD9_Code, counter) %>% group_by(ICD9_Code) %>% summarise(SUM = sum(counter), ratio = SUM/6112) %>% arrange(desc(SUM))
 
 #todo
 #1. Is is a good idea to subquery by each racial category to ensure that race is perfectly controlled for? If do this, will loose any effect that race might have on likelyhood of getting BC
