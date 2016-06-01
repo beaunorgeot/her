@@ -625,8 +625,7 @@ names(ref_tmp) = c("age","study")
 age_df = rbind(bc_tmp, ref_tmp) %>% mutate(study = as.factor(study))
 age_plot = ggplot() + geom_boxplot(data = age_df, aes(x = study, y = age, color = study), notch = T)
 
-# tomorrow
-# could do histograms/plots for race, smoking, age between the groups
+########### comorbidities ################
 # comorbities for all BC and all reference (complete patient history)
 all_comorbid_bc_cohort_general = read.csv("all_comorbid_bc_cohort_general.csv")
 #select distinct `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct PATIENTS.`Patient_ID` from `PATIENTS`,`PATIENT_RACE` where PATIENTS.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and PATIENTS.`Patient_ID` not in ("796887201257050", "198259877972305", "211516019422561", "813369655981660", "573151760734618", "35229234490544",  "620538185350597", "259266504086554","189134215470403", "88734864722937",  "821811892092228", "770099472720176", "76906170696020" ) and `PATIENT_RACE`.`Patient_Race`not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_Sex` = "Female" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` ) GROUP BY `DIAGNOSES`.`ICD9_Code` having numOccur > 5 ORDER BY numOccur desc 
@@ -634,10 +633,35 @@ all_comorbid_bc_cohort_general = read.csv("all_comorbid_bc_cohort_general.csv")
 byPatient_comorbid_bc_cohort_general = read.csv("byPatient_comorbid_bc_cohort_general.csv")
 # select `DIAGNOSES`.`Patient_ID`, `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct PATIENTS.`Patient_ID` from `PATIENTS`,`PATIENT_RACE` where PATIENTS.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and PATIENTS.`Patient_ID` not in ("796887201257050", "198259877972305", "211516019422561", "813369655981660", "573151760734618", "35229234490544",  "620538185350597", "259266504086554","189134215470403", "88734864722937",  "821811892092228", "770099472720176", "76906170696020" ) and `PATIENT_RACE`.`Patient_Race`not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_Sex` = "Female" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` ) GROUP BY `DIAGNOSES`.`Patient_ID`,`DIAGNOSES`.`ICD9_Code` having numOccur > 1
 length(unique(byPatient_comorbid_bc_cohort_general$ICD9_Code)) #there are 4465 unique codes
+# right now, diagnosis codes are counted multiple times for each patient. Instead just count a code 1 time for each patient %then% group by the code %and% count the number of patients for which that code was found, also display this count as a percent of the total patients that have it
 icd9_prevelance = byPatient_comorbid_bc_cohort_general %>% mutate(counter = rep.int(1,length(byPatient_comorbid_bc_cohort_general$numOccur))) %>% select(Diagnosis_Name, ICD9_Code, counter) %>% group_by(ICD9_Code) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
+#create table that maps diagnosis name to diagnosis code
 map_icd9 = byPatient_comorbid_bc_cohort_general %>% distinct(ICD9_Code) %>% select(-c(Patient_ID,numOccur))
+#add diagnosis names back into the prevelance table
 icd9_prevelance = inner_join(icd9_prevelance, map_icd9)
+#reorder columns for easier viewing
 icd9_prevelance = icd9_prevelance[,c(4,1,2,3)]
+
+# reference
+all_comorbid_ref_cohort = read.csv("all_comorbid_ref_cohort.csv")
+#select `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` join user_norgeotb.`Reference_IDs`  b on `DIAGNOSES`.`Patient_ID`= b.`Patient_ID` GROUP BY `DIAGNOSES`.`ICD9_Code` having numOccur > 5 ORDER BY numOccur desc;
+byPatient_comorbid_ref_cohort = read.csv("byPatient_ref_cohort.csv")
+#select `DIAGNOSES`.`Patient_ID`, `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` join user_norgeotb.`Reference_IDs`  b on `DIAGNOSES`.`Patient_ID`= b.`Patient_ID` GROUP BY `DIAGNOSES`.`Patient_ID`,`DIAGNOSES`.`ICD9_Code` having numOccur > 1
+length(unique(byPatient_comorbid_ref_cohort$ICD9_Code)) # there are 4704 unique icd9 codes
+#there's missing icd9_codes, when that happens, join the code to the Diagnosis name so that all empty codes aren't treated the same
+ref_icd9_prevelance = byPatient_comorbid_ref_cohort %>% mutate(ICD9_Code = ifelse(ICD9_Code == "",paste(ICD9_Code,Diagnosis_Name, sep = "_"),as.character(ICD9_Code))) %>% mutate(counter = rep.int(1,length(byPatient_comorbid_ref_cohort$numOccur))) %>% select(Diagnosis_Name, ICD9_Code, counter) %>% group_by(ICD9_Code) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
+#ref_icd9_prevelance = byPatient_comorbid_ref_cohort %>% mutate(counter = rep.int(1,length(byPatient_comorbid_ref_cohort$numOccur))) %>% select(Diagnosis_Name, ICD9_Code, counter) %>% group_by(ICD9_Code) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
+tmp2 = ref_icd9_prevelance %>% filter(grepl('_',ICD9_Code))
+tmp1 = byPatient_comorbid_ref_cohort %>% mutate(ICD9_Code = ifelse(ICD9_Code == "",paste(ICD9_Code,Diagnosis_Name, sep = "_"),as.character(ICD9_Code)))
+
+
+ref_map_icd9 = byPatient_comorbid_ref_cohort %>% distinct(ICD9_Code) %>% select(-c(Patient_ID,numOccur))
+ref_icd9_prevelance = inner_join(ref_icd9_prevelance, ref_map_icd9)
+ref_icd9_prevelance = ref_icd9_prevelance[,c(4,1,2,3)]
+#NOTE: there may be issues with the blank ICD9 codes. looking at byPatient_comorbid_ref_cohort there are both "Other specified diseases of intestine" and "Encounter for insertion of intrauterine contraceptive device"
+#HOWEVER in ref_icd9_prevelance, only "Other specified..." shows up. one got dropped, but which and how? check "" vs " "
+
+
 #todo
 #1. Is is a good idea to subquery by each racial category to ensure that race is perfectly controlled for? If do this, will loose any effect that race might have on likelyhood of getting BC
 # NOTE: MIGHT BE VERY INTERESTING TO SEE IF THERE IS ANYTHING ABOUT MALE BC WHEN COMPARING BC SUBTYPES (go back to bc_cohort_1)
