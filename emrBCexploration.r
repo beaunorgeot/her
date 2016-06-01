@@ -531,6 +531,8 @@ bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == '*Unspecified', 'P
 bc_cohort_general[bc_cohort_general$Patient_Smoking_Status == '', 'Patient_Smoking_Status'] = "Unknown If Ever Smoked"
 bc_cohort_general = droplevels(bc_cohort_general)
 
+bc_ids = bc_cohort_general %>% select(Patient_ID)
+write.csv(bc_ids, file = "bc_ids.csv")
 #######
 
 # Next, run stat tests on age, race, and smoking status and age
@@ -629,9 +631,12 @@ age_plot = ggplot() + geom_boxplot(data = age_df, aes(x = study, y = age, color 
 # comorbities for all BC and all reference (complete patient history)
 all_comorbid_bc_cohort_general = read.csv("all_comorbid_bc_cohort_general.csv")
 #select distinct `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct PATIENTS.`Patient_ID` from `PATIENTS`,`PATIENT_RACE` where PATIENTS.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and PATIENTS.`Patient_ID` not in ("796887201257050", "198259877972305", "211516019422561", "813369655981660", "573151760734618", "35229234490544",  "620538185350597", "259266504086554","189134215470403", "88734864722937",  "821811892092228", "770099472720176", "76906170696020" ) and `PATIENT_RACE`.`Patient_Race`not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_Sex` = "Female" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` ) GROUP BY `DIAGNOSES`.`ICD9_Code` having numOccur > 5 ORDER BY numOccur desc 
-
+# if you were a Dr, these would be the conditions that you would be listing the most often. 
+# most frequently given diagnosis
 byPatient_comorbid_bc_cohort_general = read.csv("byPatient_comorbid_bc_cohort_general.csv")
 # select `DIAGNOSES`.`Patient_ID`, `DIAGNOSES`.`ICD9_Code`, `DIAGNOSES`.`Diagnosis_Name`, COUNT(`DIAGNOSES`.`ICD9_Code`) as numOccur from `DIAGNOSES` where `DIAGNOSES`.`Patient_ID` in (select distinct PATIENTS.`Patient_ID` from `PATIENTS`,`PATIENT_RACE` where PATIENTS.`Patient_ID` in (select distinct `Patient_ID` from `DIAGNOSES` where `ICD9_Code` = "174.9" group by `Patient_ID` having count(`Patient_ID`) > 1) and PATIENTS.`Patient_ID` not in ("796887201257050", "198259877972305", "211516019422561", "813369655981660", "573151760734618", "35229234490544",  "620538185350597", "259266504086554","189134215470403", "88734864722937",  "821811892092228", "770099472720176", "76906170696020" ) and `PATIENT_RACE`.`Patient_Race`not in ("Other", "Unknown/Declined") and `PATIENTS`.`Patient_Sex` = "Female" and `PATIENTS`.`Patient_ID` = `PATIENT_RACE`.`Patient_ID` ) GROUP BY `DIAGNOSES`.`Patient_ID`,`DIAGNOSES`.`ICD9_Code` having numOccur > 1
+# For each patient, this is a list of all diagnosis and the number of time each diagnosis has been assigned to them (patients given a diagnosis less than 2 times had the diagnosis ignored)
+# Diagnosis given to the most people
 length(unique(byPatient_comorbid_bc_cohort_general$ICD9_Code)) #there are 4465 unique codes
 # right now, diagnosis codes are counted multiple times for each patient. Instead just count a code 1 time for each patient %then% group by the code %and% count the number of patients for which that code was found, also display this count as a percent of the total patients that have it
 icd9_prevelance = byPatient_comorbid_bc_cohort_general %>% mutate(counter = rep.int(1,length(byPatient_comorbid_bc_cohort_general$numOccur))) %>% select(Diagnosis_Name, ICD9_Code, counter) %>% group_by(ICD9_Code) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
@@ -651,13 +656,35 @@ length(unique(byPatient_comorbid_ref_cohort$ICD9_Code)) # there are 4704 unique 
 #there's missing icd9_codes, when that happens, join the code to the Diagnosis name so that all empty codes aren't treated the same
 ref_icd9_prevelance = byPatient_comorbid_ref_cohort %>% mutate(ICD9_Code = ifelse(ICD9_Code == "",paste(ICD9_Code,Diagnosis_Name, sep = "_"),as.character(ICD9_Code))) %>% mutate(counter = rep.int(1,length(byPatient_comorbid_ref_cohort$numOccur))) %>% select(Diagnosis_Name, ICD9_Code, counter) %>% group_by(ICD9_Code) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
 #ref_icd9_prevelance = byPatient_comorbid_ref_cohort %>% mutate(counter = rep.int(1,length(byPatient_comorbid_ref_cohort$numOccur))) %>% select(Diagnosis_Name, ICD9_Code, counter) %>% group_by(ICD9_Code) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
-tmp2 = ref_icd9_prevelance %>% filter(grepl('_',ICD9_Code))
-tmp1 = byPatient_comorbid_ref_cohort %>% mutate(ICD9_Code = ifelse(ICD9_Code == "",paste(ICD9_Code,Diagnosis_Name, sep = "_"),as.character(ICD9_Code)))
+# remove the missing icd9 things inorder to create a map, tmp1 removes them from reference file, tmp2 removes them from working file
+tmp2 = ref_icd9_prevelance %>% filter(grepl('_',ICD9_Code)) 
+tmp2 = tmp2 %>% mutate(Diagnosis_Name = rep("missing",times = length(tmp2$ICD9_Code)))
+tmp2 = tmp2[,c(4,1,2,3)]
+tmp1 = byPatient_comorbid_ref_cohort %>% mutate(ICD9_Code = ifelse(ICD9_Code == "",paste(ICD9_Code,Diagnosis_Name, sep = "_"),as.character(ICD9_Code))) %>% filter(!grepl("_",ICD9_Code))
+tmp = ref_icd9_prevelance %>% filter(!grepl('_',ICD9_Code))
 
+ref_map_icd9 = tmp1 %>% distinct(ICD9_Code) %>% select(-c(Patient_ID,numOccur))
+ref_icd9_prevelance_j = inner_join(tmp, ref_map_icd9)
+ref_icd9_prevelance_j = ref_icd9_prevelance_j[,c(4,1,2,3)]
+ref_icd9_prevelance_j = rbind(ref_icd9_prevelance_j, tmp2) %>% arrange(desc(SUM))
+#### old stuff, 3 lines, same as above but without filtering for the missing icd9's
+#ref_map_icd9 = byPatient_comorbid_ref_cohort %>% distinct(ICD9_Code) %>% select(-c(Patient_ID,numOccur))
+#ref_icd9_prevelance = inner_join(ref_icd9_prevelance, ref_map_icd9)
+#ref_icd9_prevelance = ref_icd9_prevelance[,c(4,1,2,3)]
 
-ref_map_icd9 = byPatient_comorbid_ref_cohort %>% distinct(ICD9_Code) %>% select(-c(Patient_ID,numOccur))
-ref_icd9_prevelance = inner_join(ref_icd9_prevelance, ref_map_icd9)
-ref_icd9_prevelance = ref_icd9_prevelance[,c(4,1,2,3)]
+# DRUGS
+# most frequently ordered drugs
+ref_most_freq_drugs = read.csv("ref_most_freq_drugs.csv")
+#select `MEDICATION_ORDERS`.`Medication_Name` , COUNT(`MEDICATION_ORDERS`.`Medication_Name`) as numOccur from `MEDICATION_ORDERS` join user_norgeotb.`Reference_IDs`  b on `MEDICATION_ORDERS`.`Patient_ID`= b.`Patient_ID` GROUP BY `MEDICATION_ORDERS`.`Medication_Name` having numOccur > 5 ORDER BY numOccur desc;
+bc_most_freq_drugs = read.csv("bc_most_freq_drugs.csv")
+# select `MEDICATION_ORDERS`.`Medication_Name` , COUNT(`MEDICATION_ORDERS`.`Medication_Name`) as numOccur from `MEDICATION_ORDERS` join user_norgeotb.`bc_ids`  b on `MEDICATION_ORDERS`.`Patient_ID`= b.`Patient_ID` GROUP BY `MEDICATION_ORDERS`.`Medication_Name` having numOccur > 5 ORDER BY numOccur desc;
+
+# drugs given to the most people
+ref_drugs_to_most_people = read.csv("ref_drugs_to_most_people.csv")
+#select `MEDICATION_ORDERS`.`Patient_ID`, `MEDICATION_ORDERS`.`Medication_Name` , COUNT(`MEDICATION_ORDERS`.`Medication_Name`) as numOccur from `MEDICATION_ORDERS` join user_norgeotb.`Reference_IDs`  b on `MEDICATION_ORDERS`.`Patient_ID`= b.`Patient_ID` GROUP BY `MEDICATION_ORDERS`.`Patient_ID`, `MEDICATION_ORDERS`.`Medication_Name` having numOccur > 1 
+bc_drugs_to_most_people = read.csv("bc_drugs_to_most_people.csv")
+#select `MEDICATION_ORDERS`.`Patient_ID`, `MEDICATION_ORDERS`.`Medication_Name` , COUNT(`MEDICATION_ORDERS`.`Medication_Name`) as numOccur from `MEDICATION_ORDERS` join user_norgeotb.`bc_ids`  b on `MEDICATION_ORDERS`.`Patient_ID`= b.`Patient_ID` GROUP BY `MEDICATION_ORDERS`.`Patient_ID`, `MEDICATION_ORDERS`.`Medication_Name` having numOccur > 1 
+
 #NOTE: there may be issues with the blank ICD9 codes. looking at byPatient_comorbid_ref_cohort there are both "Other specified diseases of intestine" and "Encounter for insertion of intrauterine contraceptive device"
 #HOWEVER in ref_icd9_prevelance, only "Other specified..." shows up. one got dropped, but which and how? check "" vs " "
 
