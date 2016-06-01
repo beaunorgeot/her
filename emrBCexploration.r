@@ -645,7 +645,7 @@ map_icd9 = byPatient_comorbid_bc_cohort_general %>% distinct(ICD9_Code) %>% sele
 #add diagnosis names back into the prevelance table
 icd9_prevelance = inner_join(icd9_prevelance, map_icd9)
 #reorder columns for easier viewing
-icd9_prevelance = icd9_prevelance[,c(4,1,2,3)]
+bc_icd9_prevelance = icd9_prevelance[,c(4,1,2,3)]
 
 # reference
 all_comorbid_ref_cohort = read.csv("all_comorbid_ref_cohort.csv")
@@ -672,7 +672,7 @@ ref_icd9_prevelance_j = rbind(ref_icd9_prevelance_j, tmp2) %>% arrange(desc(SUM)
 #ref_icd9_prevelance = inner_join(ref_icd9_prevelance, ref_map_icd9)
 #ref_icd9_prevelance = ref_icd9_prevelance[,c(4,1,2,3)]
 
-# DRUGS
+################ DRUGS #########################
 # most frequently ordered drugs
 ref_most_freq_drugs = read.csv("ref_most_freq_drugs.csv")
 #select `MEDICATION_ORDERS`.`Medication_Name` , COUNT(`MEDICATION_ORDERS`.`Medication_Name`) as numOccur from `MEDICATION_ORDERS` join user_norgeotb.`Reference_IDs`  b on `MEDICATION_ORDERS`.`Patient_ID`= b.`Patient_ID` GROUP BY `MEDICATION_ORDERS`.`Medication_Name` having numOccur > 5 ORDER BY numOccur desc;
@@ -685,6 +685,18 @@ ref_drugs_to_most_people = read.csv("ref_drugs_to_most_people.csv")
 bc_drugs_to_most_people = read.csv("bc_drugs_to_most_people.csv")
 #select `MEDICATION_ORDERS`.`Patient_ID`, `MEDICATION_ORDERS`.`Medication_Name` , COUNT(`MEDICATION_ORDERS`.`Medication_Name`) as numOccur from `MEDICATION_ORDERS` join user_norgeotb.`bc_ids`  b on `MEDICATION_ORDERS`.`Patient_ID`= b.`Patient_ID` GROUP BY `MEDICATION_ORDERS`.`Patient_ID`, `MEDICATION_ORDERS`.`Medication_Name` having numOccur > 1 
 
+bc_drug_prevalence = bc_drugs_to_most_people %>% mutate(counter = rep.int(1,length(bc_drugs_to_most_people$numOccur))) %>% select(Medication_Name, counter) %>% group_by(Medication_Name) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
+ref_drug_prevalence = ref_drugs_to_most_people %>% mutate(counter = rep.int(1,length(ref_drugs_to_most_people$numOccur))) %>% select(Medication_Name, counter) %>% group_by(Medication_Name) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
+
+bob = bc_drug_prevalence[1:20,]
+bob = bob %>% mutate(ref_percent = )
+jo = ref_drug_prevalence[1:100,]
+
+for (i in bob$Medication_Name){
+  if (i %in% jo$Medication_Name){
+    print(as.numeric(jo[which(jo$Medication_Name == i, arr.ind = T),3]))
+  }
+}
 #NOTE: there may be issues with the blank ICD9 codes. looking at byPatient_comorbid_ref_cohort there are both "Other specified diseases of intestine" and "Encounter for insertion of intrauterine contraceptive device"
 #HOWEVER in ref_icd9_prevelance, only "Other specified..." shows up. one got dropped, but which and how? check "" vs " "
 
