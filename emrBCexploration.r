@@ -688,15 +688,19 @@ bc_drugs_to_most_people = read.csv("bc_drugs_to_most_people.csv")
 bc_drug_prevalence = bc_drugs_to_most_people %>% mutate(counter = rep.int(1,length(bc_drugs_to_most_people$numOccur))) %>% select(Medication_Name, counter) %>% group_by(Medication_Name) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
 ref_drug_prevalence = ref_drugs_to_most_people %>% mutate(counter = rep.int(1,length(ref_drugs_to_most_people$numOccur))) %>% select(Medication_Name, counter) %>% group_by(Medication_Name) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
 
-bob = bc_drug_prevalence[1:20,]
-bob = bob %>% mutate(ref_percent = )
-jo = ref_drug_prevalence[1:100,]
+bob = bc_drug_prevalence[1:500,]
+jo = ref_drug_prevalence
 
+bob$jo_comp = NA
 for (i in bob$Medication_Name){
   if (i %in% jo$Medication_Name){
-    print(as.numeric(jo[which(jo$Medication_Name == i, arr.ind = T),3]))
+    bob[as.numeric(which(bob$Medication_Name == i)), 4] = as.numeric(jo[which(jo$Medication_Name == i, arr.ind = T),3])
   }
+  else bob[as.numeric(which(bob$Medication_Name == i)), 4] = 0
 }
+
+bob = bob %>% mutate(ratio = round(percentWith/jo_comp, digits = 2))
+
 #NOTE: there may be issues with the blank ICD9 codes. looking at byPatient_comorbid_ref_cohort there are both "Other specified diseases of intestine" and "Encounter for insertion of intrauterine contraceptive device"
 #HOWEVER in ref_icd9_prevelance, only "Other specified..." shows up. one got dropped, but which and how? check "" vs " "
 
