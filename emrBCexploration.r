@@ -688,24 +688,70 @@ bc_drugs_to_most_people = read.csv("bc_drugs_to_most_people.csv")
 bc_drug_prevalence = bc_drugs_to_most_people %>% mutate(counter = rep.int(1,length(bc_drugs_to_most_people$numOccur))) %>% select(Medication_Name, counter) %>% group_by(Medication_Name) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
 ref_drug_prevalence = ref_drugs_to_most_people %>% mutate(counter = rep.int(1,length(ref_drugs_to_most_people$numOccur))) %>% select(Medication_Name, counter) %>% group_by(Medication_Name) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
 
-bob = bc_drug_prevalence[1:500,]
-jo = ref_drug_prevalence
-
-bob$jo_comp = NA
-for (i in bob$Medication_Name){
-  if (i %in% jo$Medication_Name){
-    bob[as.numeric(which(bob$Medication_Name == i)), 4] = as.numeric(jo[which(jo$Medication_Name == i, arr.ind = T),3])
+bc_drug_prevalence$ref_percent = NA
+for (i in bc_drug_prevalence$Medication_Name){
+  if (i %in% ref_drug_prevalence$Medication_Name){
+    bc_drug_prevalence[as.numeric(which(bc_drug_prevalence$Medication_Name == i)), 4] = as.numeric(ref_drug_prevalence[which(ref_drug_prevalence$Medication_Name == i, arr.ind = T),3])
   }
-  else bob[as.numeric(which(bob$Medication_Name == i)), 4] = 0
+  else bc_drug_prevalence[as.numeric(which(bc_drug_prevalence$Medication_Name == i)), 4] = 0
 }
 
-bob = bob %>% mutate(ratio = round(percentWith/jo_comp, digits = 2))
+bc_drug_prevalence = bc_drug_prevalence %>% mutate(ratio = round(percentWith/ref_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
+bc_drug_only = bc_drug_prevalence %>% filter(ref_percent == 0.00)
+# There are 751 drugs found in BC cohort that are not seen in reference cohort
+bc_drug_highly_enriched = bc_drug_prevalence %>% filter(ratio >= 5.00)
+# there are 104 that are 5x more common in BC
 
-#NOTE: there may be issues with the blank ICD9 codes. looking at byPatient_comorbid_ref_cohort there are both "Other specified diseases of intestine" and "Encounter for insertion of intrauterine contraceptive device"
-#HOWEVER in ref_icd9_prevelance, only "Other specified..." shows up. one got dropped, but which and how? check "" vs " "
+#NEXT: do exact same thing but start w/ reference and add numbers from BC
+ref_drug_prevalence$bc_percent = NA
+for (i in ref_drug_prevalence$Medication_Name){
+  if (i %in% bc_drug_prevalence$Medication_Name){
+    ref_drug_prevalence[as.numeric(which(ref_drug_prevalence$Medication_Name == i)), 4] = as.numeric(bc_drug_prevalence[which(bc_drug_prevalence$Medication_Name == i, arr.ind = T),3])
+  }
+  else ref_drug_prevalence[as.numeric(which(ref_drug_prevalence$Medication_Name == i)), 4] = 0
+}
+
+ref_drug_prevalence = ref_drug_prevalence %>% mutate(ratio = round(percentWith/bc_percent, digits = 2))
+ref_drug_only = ref_drug_prevalence %>% filter(bc_percent == 0.00) 
+# there are 683 drugs in the reference cohort that aren't in the BC cohort
+ref_drug_highly_enriched = ref_drug_prevalence %>% filter(ratio >= 5.00)
+
+mean(ref_drug_prevalence$ratio, na.rm = T) # 1.18
+mean(bc_drug_prevalence$ratio, na.rm = T) #2.33, not sure how I want to interpret this
+
+##### ICD9 code comparisons #############
+#ref_icd9_prevelance_j
+# bc_icd9_prevelance
+bc_icd9_prevelance$ref_percent = NA
+for (i in bc_icd9_prevelance$ICD9_Code){
+  if (i %in% ref_icd9_prevelance_j$ICD9_Code){
+    bc_icd9_prevelance[as.numeric(which(bc_icd9_prevelance$ICD9_Code == i)), 5] = as.numeric(ref_icd9_prevelance_j[which(ref_icd9_prevelance_j$ICD9_Code == i, arr.ind = T),4])
+  }
+  else bc_icd9_prevelance[as.numeric(which(bc_icd9_prevelance$ICD9_Code == i)), 5] = 0
+}
+
+bc_icd9_prevelance = bc_icd9_prevelance %>% mutate(ratio = round(percentWith/ref_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
+bc_icd9_only = bc_icd9_prevelance %>% filter(ref_percent == 0.00)
+# There are 902 icd9's found in BC cohort that are not seen in reference cohort
+bc_icd9_highly_enriched = bc_icd9_prevelance %>% filter(ratio >= 5.00)
+
+#repeat for the reference:
+ref_icd9_prevelance_j$bc_percent = NA
+for (i in ref_icd9_prevelance_j$ICD9_Code){
+  if (i %in% ref_icd9_prevelance_j$ICD9_Code){
+    ref_icd9_prevelance_j[as.numeric(which(ref_icd9_prevelance_j$ICD9_Code == i)), 5] = as.numeric(bc_icd9_prevelance[which(bc_icd9_prevelance$ICD9_Code == i, arr.ind = T),4])
+  }
+  else ref_icd9_prevelance_j[as.numeric(which(ref_icd9_prevelance_j$ICD9_Code == i)), 5] = 0
+}
+
+ref_icd9_prevelance_j = ref_icd9_prevelance_j %>% mutate(ratio = round(percentWith/bc_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
+ref_icd9_only = ref_icd9_prevelance_j %>% filter(bc_percent == 0.00)
+# There are NO icd9's found in reference that aren't in BC cohort
+ref_icd9_highly_enriched = ref_icd9_prevelance_j %>% filter(ratio >= 5.00)
+
+#---------------------------
 
 
 #todo
-#1. Is is a good idea to subquery by each racial category to ensure that race is perfectly controlled for? If do this, will loose any effect that race might have on likelyhood of getting BC
 # NOTE: MIGHT BE VERY INTERESTING TO SEE IF THERE IS ANYTHING ABOUT MALE BC WHEN COMPARING BC SUBTYPES (go back to bc_cohort_1)
 # note: when looking w/in BC should I look at both complete patient history AND repeat looking only at comorbdidities/drugs after diagnosis?
