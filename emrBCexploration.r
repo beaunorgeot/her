@@ -505,12 +505,12 @@ bc_cohort_1$Patient_ID = as.factor(as.character(bc_cohort_1$Patient_ID))
 bc_cohort_1 = bc_cohort_1 %>% distinct(Patient_ID) #dim(bc_cohort_1) = 7528. Got correct number now. not sure what happened.
 #remove patients that don't have values for race or
 #REMOVE MALE PATIENTS FROM BC COHORT WHEN COMPARING TO GENERAL POPULATION
-bc_cohort_general = bc_cohort_1 %>% filter(!Patient_Race %in% c("Other", "Unknown/Declined"), Patient_Sex == "Female") #6112 patients left 
+bc_cohort_general = bc_cohort_1 %>% filter(!Patient_Race %in% c("Other", "Unknown/Declined"), Patient_Sex == "Female") %>% select(-Patient_Sex)#6112 patients left 
 bc_cohort_general = droplevels(bc_cohort_general)
 
 #combine smoking levels into something that makes more sense: never, light, heavy, unknown
 # heavy = (current every day, heavy tobacco smoker)
-# light = (current some day, former smoker, light tobacco smoker, )
+# light = (current some day, former smoker, light tobacco smoker, )  
 # never = (Never smoker, passive smoke exposure never smoker)
 # unknown = (Never assessed, smoker current status unknown, unknown if ever smoked)
 reference_cohort_1[reference_cohort_1$Patient_Smoking_Status == 'Current Every Day Smoker', 'Patient_Smoking_Status'] = "Heavy Tobacco Smoker"
@@ -699,6 +699,7 @@ for (i in bc_drug_prevalence$Medication_Name){
 bc_drug_prevalence = bc_drug_prevalence %>% mutate(ratio = round(percentWith/ref_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
 bc_drug_only = bc_drug_prevalence %>% filter(ref_percent == 0.00)
 # There are 751 drugs found in BC cohort that are not seen in reference cohort
+bc_drug_enrichment = bc_drug_prevalence %>% arrange(desc(ratio))
 bc_drug_highly_enriched = bc_drug_prevalence %>% filter(ratio >= 5.00)
 # there are 104 that are 5x more common in BC
 
@@ -733,6 +734,8 @@ for (i in bc_icd9_prevelance$ICD9_Code){
 bc_icd9_prevelance = bc_icd9_prevelance %>% mutate(ratio = round(percentWith/ref_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
 bc_icd9_only = bc_icd9_prevelance %>% filter(ref_percent == 0.00)
 # There are 902 icd9's found in BC cohort that are not seen in reference cohort
+bc_icd_enrichment = bc_icd9_prevelance %>% arrange(desc(ratio))
+bc_nonBreast_icd9_enrichment = bc_icd_enrichment %>% filter(!grepl('breast',tolower(Diagnosis_Name)))
 bc_icd9_highly_enriched = bc_icd9_prevelance %>% filter(ratio >= 5.00)
 
 #repeat for the reference:
@@ -746,12 +749,23 @@ for (i in ref_icd9_prevelance_j$ICD9_Code){
 
 ref_icd9_prevelance_j = ref_icd9_prevelance_j %>% mutate(ratio = round(percentWith/bc_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
 ref_icd9_only = ref_icd9_prevelance_j %>% filter(bc_percent == 0.00)
+ref_icd_enrichment = ref_icd9_prevelance_j %>% arrange(desc(ratio))
 # There are NO icd9's found in reference that aren't in BC cohort
 ref_icd9_highly_enriched = ref_icd9_prevelance_j %>% filter(ratio >= 5.00)
 
 #---------------------------
-
-
+#List of plots and tables
+race_plot
+smoke_plot
+age_plot
+bc_cohort_general #demographics
+all_comorbid_bc_cohort_general # what icd9 is dr that sees bc patients most likely to give
+bc_icd9_prevelance # what % of bc patients have a particular icd9
+bc_icd_enrichment # icd9 prevelance, ordered on the odds ratio against reference
+bc_most_freq_drugs # what medications is dr that sees bc patients most likely to give
+bc_drug_prevalence # what % of bc patients have a particular medication
+bc_drug_enrichment # drug prevelance, ordered on the odds ratio against reference
+#write.csv(reference_ids, file = "reference_ids.csv")
 #todo
 # NOTE: MIGHT BE VERY INTERESTING TO SEE IF THERE IS ANYTHING ABOUT MALE BC WHEN COMPARING BC SUBTYPES (go back to bc_cohort_1)
 # note: when looking w/in BC should I look at both complete patient history AND repeat looking only at comorbdidities/drugs after diagnosis?
