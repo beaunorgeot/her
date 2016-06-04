@@ -689,14 +689,51 @@ bc_drug_prevalence = bc_drugs_to_most_people %>% mutate(counter = rep.int(1,leng
 ref_drug_prevalence = ref_drugs_to_most_people %>% mutate(counter = rep.int(1,length(ref_drugs_to_most_people$numOccur))) %>% select(Medication_Name, counter) %>% group_by(Medication_Name) %>% summarise(SUM = sum(counter), percentWith = round(100*SUM/6112, digits = 2)) %>% arrange(desc(SUM))
 
 bc_drug_prevalence$ref_percent = NA
+bc_drug_prevalence$ref_drug_SUM = NA
 for (i in bc_drug_prevalence$Medication_Name){
   if (i %in% ref_drug_prevalence$Medication_Name){
     bc_drug_prevalence[as.numeric(which(bc_drug_prevalence$Medication_Name == i)), 4] = as.numeric(ref_drug_prevalence[which(ref_drug_prevalence$Medication_Name == i, arr.ind = T),3])
+    bc_drug_prevalence[as.numeric(which(bc_drug_prevalence$Medication_Name == i)), 5] = as.numeric(ref_drug_prevalence[which(ref_drug_prevalence$Medication_Name == i, arr.ind = T),2]) 
   }
-  else bc_drug_prevalence[as.numeric(which(bc_drug_prevalence$Medication_Name == i)), 4] = 0
+  else {bc_drug_prevalence[as.numeric(which(bc_drug_prevalence$Medication_Name == i)), 4] = 0; bc_drug_prevalence[as.numeric(which(bc_drug_prevalence$Medication_Name == i)), 5] = 0}
 }
 
 bc_drug_prevalence = bc_drug_prevalence %>% mutate(ratio = round(percentWith/ref_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
+total = 6112
+#bc_drug_prevalence = bc_drug_prevalence %>% mutate(pvalue = chisq.test(c(SUM,(total -SUM)),c(ref_drug_SUM,(total - ref_drug_SUM)))$p.value*2482)
+#above is the one I care about
+bob = c(SUM,(total -SUM))
+jo = c(ref_drug_SUM,(total - ref_drug_SUM))
+chisq.test(rbind(bob,jo)) #works
+chisq.test(rbind(c(SUM,(total -SUM)),c(ref_drug_SUM,(total - ref_drug_SUM)))) #also works
+#bc_drug_prevalence = bc_drug_prevalence %>% mutate(pvalue = (total-SUM) + (total-ref_drug_SUM))
+bc_drug_prevalence = bc_drug_prevalence %>% mutate(pvalue = chisq.test(rbind(c(SUM,(total -SUM)),c(ref_drug_SUM,(total - ref_drug_SUM))))$p.value)
+bc_drug_prevalence = bc_drug_prevalence %>% mutate(bob =total -SUM, jo =total - ref_drug_SUM)
+bc_drug_prevalence = bc_drug_prevalence %>% mutate(t1 = SUM+bob)#, t2 =list(ref_drug_SUM,jo))
+# YOU ARE HERE... seems like my p.values are being truncated to zero. need sci notation?
+a = bc_drug_prevalence$SUM
+b = bc_drug_prevalence$ref_drug_SUM
+
+
+dumdum = list()
+meme = list()
+for(i in 1:length(a)){
+  ap = c(a[i], total - a[i])
+  dumdum[[i]] = ap
+  for(j in 1:length(b)){
+    bp = c(b[j], total - b[j])
+    meme[[j]] = bp
+  }}
+momo = list()
+san = for(i in 1:length(dumdum)){
+  print(i)
+  tmp = rbind(dumdum[[i]],meme[[i]])
+  print(tmp)
+  mychi = chisq.test(tmp)$p.value
+  momo[[i]] = mychi
+}
+
+bc_drug_prevalence$pvalue = momo
 bc_drug_only = bc_drug_prevalence %>% filter(ref_percent == 0.00)
 # There are 751 drugs found in BC cohort that are not seen in reference cohort
 bc_drug_enrichment = bc_drug_prevalence %>% arrange(desc(ratio))
