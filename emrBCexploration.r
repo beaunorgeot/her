@@ -687,47 +687,43 @@ for (i in bc_icd9_prevelance$ICD9_Code){
 
 bc_icd9_prevelance = bc_icd9_prevelance %>% mutate(ratio = round(percentWith/ref_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
 #---warn
-####
 total = 6112
 
-a = bc_drug_prevalence$SUM
-b = bc_drug_prevalence$ref_drug_SUM
+c = bc_icd9_prevelance$SUM
+d = bc_icd9_prevelance$ref_SUM
 
 dumdum = list()
 meme = list()
-for(i in 1:length(a)){
-  ap = c(a[i], total - a[i])
+for(i in 1:length(c)){
+  ap = c(c[i], total - c[i])
   dumdum[[i]] = ap
-  for(j in 1:length(b)){
-    bp = c(b[j], total - b[j])
+  for(j in 1:length(d)){
+    bp = c(d[j], total - d[j])
     meme[[j]] = bp
   }}
 pvalue = list()
-san = for(i in 1:length(dumdum)){
+for(i in 1:length(dumdum)){
   print(i)
   tmp = rbind(dumdum[[i]],meme[[i]])
-  #print(tmp)
+  print(tmp)
   mychi = chisq.test(tmp)$p.value
   pvalue[[i]] = mychi
 }
 pvalue = as.numeric(pvalue)
-bc_drug_prevalence$pvalue = pvalue
-number_drug_tests = 2482
-bonferroni_drug = .05/2482
-bc_drug_only = bc_drug_prevalence %>% filter(ref_percent == 0.00)
-# There are 751 drugs found in BC cohort that are not seen in reference cohort
-bc_drug_enrichment = bc_drug_prevalence %>% arrange(desc(ratio))
-bc_drug_significant = bc_drug_enrichment %>% filter(pvalue <= bonferroni_drug)
-#there are 146 significant drugs
-write.csv(bc_drug_significant, file = "bc_drug_significant.csv")
+
+bc_icd9_prevelance$pvalue = pvalue
+number_icd9_tests = 4465
+bonferroni_icd9 = .05/number_icd9_tests
+bc_icd9_only = bc_icd9_prevelance %>% filter(ref_percent == 0.00)
+# There are 902 icd9s found in BC cohort that are not seen in reference cohort
+bc_icd9_enrichment = bc_icd9_prevelance %>% arrange(desc(ratio))
+bc_icd9_significant = bc_icd9_enrichment %>% filter(pvalue <= bonferroni_icd9)
+#there are 281 significant drugs
+write.csv(bc_icd9_enrichment, file = "bc_icd9_enrichment.csv")
+bc_nonBreast_icd9_enrichment = bc_icd9_significant %>% filter(!grepl('breast',tolower(Diagnosis_Name)))
+bc_icd9_highly_enriched = bc_icd9_significant %>% filter(ratio >= 5.00)
 
 #############----------------
-bc_icd9_only = bc_icd9_prevelance %>% filter(ref_percent == 0.00)
-# There are 902 icd9's found in BC cohort that are not seen in reference cohort
-bc_icd_enrichment = bc_icd9_prevelance %>% arrange(desc(ratio))
-bc_nonBreast_icd9_enrichment = bc_icd_enrichment %>% filter(!grepl('breast',tolower(Diagnosis_Name)))
-bc_icd9_highly_enriched = bc_icd9_prevelance %>% filter(ratio >= 5.00)
-
 #repeat for the reference:
 ref_icd9_prevelance_j$bc_percent = NA
 for (i in ref_icd9_prevelance_j$ICD9_Code){
@@ -796,7 +792,7 @@ san = for(i in 1:length(dumdum)){
 pvalue = as.numeric(pvalue)
 bc_drug_prevalence$pvalue = pvalue
 number_drug_tests = 2482
-bonferroni_drug = .05/2482
+bonferroni_drug = .05/number_drug_tests
 bc_drug_only = bc_drug_prevalence %>% filter(ref_percent == 0.00)
 # There are 751 drugs found in BC cohort that are not seen in reference cohort
 bc_drug_enrichment = bc_drug_prevalence %>% arrange(desc(ratio))
