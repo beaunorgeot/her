@@ -720,24 +720,59 @@ bc_icd9_enrichment = bc_icd9_prevelance %>% arrange(desc(ratio))
 bc_icd9_significant = bc_icd9_enrichment %>% filter(pvalue <= bonferroni_icd9)
 #there are 281 significant drugs
 write.csv(bc_icd9_enrichment, file = "bc_icd9_enrichment.csv")
+write.csv(bc_icd9_significant, file = "bc_icd9_significant.csv")
 bc_nonBreast_icd9_enrichment = bc_icd9_significant %>% filter(!grepl('breast',tolower(Diagnosis_Name)))
 bc_icd9_highly_enriched = bc_icd9_significant %>% filter(ratio >= 5.00)
 
 #############----------------
 #repeat for the reference:
+#bc_icd9_prevelance, ref_icd9_prevelance_j
+ref_icd9_prevelance_j$bc_SUM = NA
 ref_icd9_prevelance_j$bc_percent = NA
 for (i in ref_icd9_prevelance_j$ICD9_Code){
-  if (i %in% ref_icd9_prevelance_j$ICD9_Code){
-    ref_icd9_prevelance_j[as.numeric(which(ref_icd9_prevelance_j$ICD9_Code == i)), 5] = as.numeric(bc_icd9_prevelance[which(bc_icd9_prevelance$ICD9_Code == i, arr.ind = T),4])
+  if (i %in% bc_icd9_prevelance$ICD9_Code){
+    ref_icd9_prevelance_j[as.numeric(which(ref_icd9_prevelance_j$ICD9_Code == i)), 5] = as.numeric(bc_icd9_prevelance[which(bc_icd9_prevelance$ICD9_Code == i, arr.ind = T),3])
+    ref_icd9_prevelance_j[as.numeric(which(ref_icd9_prevelance_j$ICD9_Code == i)), 6] = as.numeric(bc_icd9_prevelance[which(bc_icd9_prevelance$ICD9_Code == i, arr.ind = T),4])
   }
-  else ref_icd9_prevelance_j[as.numeric(which(ref_icd9_prevelance_j$ICD9_Code == i)), 5] = 0
+  else {ref_icd9_prevelance_j[as.numeric(which(ref_icd9_prevelance_j$ICD9_Code == i)), 5] = 0; ref_icd9_prevelance_j[as.numeric(which(ref_icd9_prevelance_j$ICD9_Code == i)), 6] = 0}
 }
 
 ref_icd9_prevelance_j = ref_icd9_prevelance_j %>% mutate(ratio = round(percentWith/bc_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
+total = 6112
+
+c = ref_icd9_prevelance_j$SUM
+d = ref_icd9_prevelance_j$bc_SUM
+
+dumdum = list()
+meme = list()
+for(i in 1:length(c)){
+  ap = c(c[i], total - c[i])
+  dumdum[[i]] = ap
+  for(j in 1:length(d)){
+    bp = c(d[j], total - d[j])
+    meme[[j]] = bp
+  }}
+pvalue = list()
+for(i in 1:length(dumdum)){
+  print(i)
+  tmp = rbind(dumdum[[i]],meme[[i]])
+  print(tmp)
+  mychi = chisq.test(tmp)$p.value
+  pvalue[[i]] = mychi
+}
+pvalue = as.numeric(pvalue)
+
+ref_icd9_prevelance_j$pvalue = pvalue
+number_icd9_tests = 4465
+bonferroni_icd9 = .05/number_icd9_tests
 ref_icd9_only = ref_icd9_prevelance_j %>% filter(bc_percent == 0.00)
-ref_icd_enrichment = ref_icd9_prevelance_j %>% arrange(desc(ratio))
-# There are NO icd9's found in reference that aren't in BC cohort
-ref_icd9_highly_enriched = ref_icd9_prevelance_j %>% filter(ratio >= 5.00)
+# There are 1600 icd9s found in BC cohort that are not seen in reference cohort
+ref_icd9_enrichment = ref_icd9_prevelance_j %>% arrange(desc(ratio))
+ref_icd9_significant = ref_icd9_enrichment %>% filter(pvalue <= bonferroni_icd9)
+#there are 268 significant icd9's
+write.csv(ref_icd9_enrichment, file = "ref_icd9_enrichment.csv")
+write.csv(ref_icd9_significant, file = "ref_icd9_significant.csv")
+#ref_icd9_highly_enriched = ref_icd9_significant %>% filter(ratio >= 5.00)
 
 
 ################ DRUGS #########################
@@ -803,21 +838,56 @@ write.csv(bc_drug_significant, file = "bc_drug_significant.csv")
 # there are 104 that are 5x more common in BC
 
 #NEXT: do exact same thing but start w/ reference and add numbers from BC
+#ref_drug_prevalence, bc_drug_prevalence
 ref_drug_prevalence$bc_percent = NA
+ref_drug_prevalence$bc_drug_SUM = NA
 for (i in ref_drug_prevalence$Medication_Name){
   if (i %in% bc_drug_prevalence$Medication_Name){
     ref_drug_prevalence[as.numeric(which(ref_drug_prevalence$Medication_Name == i)), 4] = as.numeric(bc_drug_prevalence[which(bc_drug_prevalence$Medication_Name == i, arr.ind = T),3])
+    ref_drug_prevalence[as.numeric(which(ref_drug_prevalence$Medication_Name == i)), 5] = as.numeric(bc_drug_prevalence[which(bc_drug_prevalence$Medication_Name == i, arr.ind = T),2]) 
   }
-  else ref_drug_prevalence[as.numeric(which(ref_drug_prevalence$Medication_Name == i)), 4] = 0
+  else {ref_drug_prevalence[as.numeric(which(ref_drug_prevalence$Medication_Name == i)), 4] = 0; ref_drug_prevalence[as.numeric(which(ref_drug_prevalence$Medication_Name == i)), 5] = 0}
 }
 
-ref_drug_prevalence = ref_drug_prevalence %>% mutate(ratio = round(percentWith/bc_percent, digits = 2))
-ref_drug_only = ref_drug_prevalence %>% filter(bc_percent == 0.00) 
-# there are 683 drugs in the reference cohort that aren't in the BC cohort
-ref_drug_highly_enriched = ref_drug_prevalence %>% filter(ratio >= 5.00)
+ref_drug_prevalence = ref_drug_prevalence %>% mutate(ratio = round(percentWith/bc_percent, digits = 2), ratio = ifelse(is.infinite(ratio),NA,ratio)) 
+total = 6112
 
-mean(ref_drug_prevalence$ratio, na.rm = T) 
-mean(bc_drug_prevalence$ratio, na.rm = T) #2.33, not sure how I want to interpret this
+a = ref_drug_prevalence$SUM
+b = ref_drug_prevalence$bc_drug_SUM
+
+dumdum = list()
+meme = list()
+for(i in 1:length(a)){
+  ap = c(a[i], total - a[i])
+  dumdum[[i]] = ap
+  for(j in 1:length(b)){
+    bp = c(b[j], total - b[j])
+    meme[[j]] = bp
+  }}
+pvalue = list()
+san = for(i in 1:length(dumdum)){
+  print(i)
+  tmp = rbind(dumdum[[i]],meme[[i]])
+  #print(tmp)
+  mychi = chisq.test(tmp)$p.value
+  pvalue[[i]] = mychi
+}
+pvalue = as.numeric(pvalue)
+
+ref_drug_prevalence$pvalue = pvalue
+number_drug_tests = 2482
+bonferroni_drug = .05/number_drug_tests
+ref_drug_only = ref_drug_prevalence %>% filter(bc_percent == 0.00)
+# There are 751 drugs found in BC cohort that are not seen in reference cohort
+ref_drug_enrichment = ref_drug_prevalence %>% arrange(desc(ratio))
+ref_drug_significant = ref_drug_enrichment %>% filter(pvalue <= bonferroni_drug)
+#there are 129 significant drugs
+write.csv(ref_drug_significant, file = "ref_drug_significant.csv")
+#ref_drug_highly_enriched = ref_drug_enrichment %>% filter(ratio >= 5.00)
+# there are 35 that are 5x more common in ref
+
+#mean(ref_drug_prevalence$ratio, na.rm = T) 
+#mean(bc_drug_prevalence$ratio, na.rm = T) #2.33, not sure how I want to interpret this
 
 
 #---------------------------
