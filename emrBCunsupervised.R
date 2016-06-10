@@ -1,9 +1,11 @@
 setwd("/Users/beaunorgeot/Desktop")
 bc_drugs_to_most_people = read.csv("bc_drugs_to_most_people.csv")
+bc_drugs_to_most_people$numOccur = as.numeric(as.character(bc_drugs_to_most_people$numOccur))
+t1 = dcast(bc_drugs_to_most_people, Patient_ID ~ Medication_Name, value.var = "numOccur", fill = 0)
 library(reshape2)
 library(dplyr)
 
-#binary = function(x){ifelse(x > 0,1,0)}
+
 #USE mutate_each with ifelse to create binary variables
 #mutate_each(df,funs(ifelse(.>0,1,.)))
 #For mutate_each see:
@@ -14,18 +16,18 @@ bob = data.frame(replicate(10,sample(0:10,1000,rep=TRUE))) #10 columns, 1000 row
 binary_bob = bob %>% mutate_each(funs(ifelse(.>0,1,.)))
 ###
 
-View(bc_drugs_to_most_people)
 #bc_drugs_to_most_people$Patient_ID = as.factor(as.character(bc_drugs_to_most_people$Patient_ID))
-bc_drugs_to_most_people$numOccur = as.numeric(bc_drugs_to_most_people$numOccur)
-length(unique(bc_drugs_to_most_people$Medication_Name)) #2482
+
+
 #### test to make sure that cast works way I want
-bob = head(bc_drugs_to_most_people, n = 1000)
-View(bob)
-try1 = dcast(bob, as.factor(as.character(Patient_ID)) ~ Medication_Name, value.var = "numOccur")
-View(try1)
-length(unique(bob$Patient_ID)) #44
-length(unique(bob$Medication_Name)) #399
-dim(try1) #44 x 400. this matches, 399 drugs + patient_ID
+bub = head(bc_drugs_to_most_people, n = 1000)
+try1 = dcast(bub, as.factor(as.character(Patient_ID)) ~ Medication_Name, value.var = "numOccur")
+
+
+
+bop = head(byPatient_comorbid_bc_cohort_general, n = 1000)
+try2 = dcast(bop, as.factor(as.character(Patient_ID)) ~ ICD9_Code, value.var = "numOccur")
+
 #####
 drugs_cast = dcast(bc_drugs_to_most_people, Patient_ID ~ Medication_Name, value.var = "numOccur", fill = 0)
 dim(drugs_cast) #3956 x 2483
@@ -129,43 +131,47 @@ ggplot(data = f_binary_tsne.drugs.demographics, aes(x = V1, y = V2,colour = perj
 
 ######## ICD9'S ###############################
 #specific comorbidities to look at: ER status, gastric cancer
-bc_drugs_to_most_people = read.csv("bc_drugs_to_most_people.csv")
-bc_drugs_to_most_people$numOccur = as.numeric(bc_drugs_to_most_people$numOccur)
-drugs_cast = dcast(bc_drugs_to_most_people, Patient_ID ~ Medication_Name, value.var = "numOccur", fill = 0)
-bc_cohort_general = read.csv("bc_cohort_general.csv")
-small_bc_general = bc_cohort_general %>% filter(Patient_ID %in% bc_drugs_to_most_people$Patient_ID)
-bob = setdiff(bc_drugs_to_most_people$Patient_ID, small_bc_general$Patient_ID)
-f_drugs_cast = drugs_cast %>% filter(!Patient_ID %in% bob)
-f_ids_removed = f_drugs_cast %>% select(-Patient_ID)
-row.names(f_ids_removed) = f_drugs_cast$Patient_ID
-f_drugs.princomp1 = princomp(f_ids_removed)
-save(f_drugs.princomp1, file = "f_drugs.princomp1") #load("f_drugs.princomp1")
+bc_icd9_to_most_people = read.csv("bc_icd9_to_most_people.csv")
+bc_icd9_to_most_people$numOccur = as.numeric(as.character(bc_icd9_to_most_people$numOccur))
+icd9_cast = dcast(bc_icd9_to_most_people, Patient_ID ~ ICD9_Code, value.var = "numOccur", fill = 0)
+j = setdiff(icd9_cast$Patient_ID, bc_cohort_general$Patient_ID) # got everyone!
+
+icd9_ids_removed = icd9_cast %>% select(-Patient_ID)
+row.names(icd9_ids_removed) = icd9_cast$Patient_ID
+icd9.princomp1 = princomp(icd9_ids_removed)
+save(icd9.princomp1, file = "icd9.princomp1.RData") #load("icd9.princomp1.RData")
 # PC deconvolution
-plot(f_drugs.princomp1) #barchart # how many pc's have variance/eigenvalue > 1
-plot(f_drugs.princomp1, type = 'l') #points. There's a pretty huge elbow at 8 PC's. But the eigenvalues are still super high.
+plot(icd9.princomp1) #barchart # how many pc's have variance/eigenvalue > 1
+plot(icd9.princomp1, type = 'l') #points. There's a pretty huge elbow at 8 PC's. But the eigenvalues are still super high.
 #1. get eigenvalues by (princomp1$sdev)^2 and filter for those over 1
 # plot the first 2 pcs w/eigenvectors
-f_drugs_eigenVector_plot = autoplot(f_drugs.princomp1, data = small_bc_general, loadings = T, loadings.label = T, loadings.label.size = 2)
+icd9_eigenVector_plot = autoplot(icd9.princomp1, data = bc_cohort_general, loadings = T, loadings.label = T, loadings.label.size = 4)
 # describe the first 2 pcs
 #loadings are their own annoying class, must unclass to get what want
-load_f_drugs.princomp1 =  as.data.frame(with(f_drugs.princomp1, unclass(loadings))) %>% select(1:10)
-load_f_drugs.princomp1 = cbind(Medication_Name = rownames(load_f_drugs.princomp1), load_f_drugs.princomp1)
-rownames(load_f_drugs.princomp1) = NULL
+load_icd9.princomp1 =  as.data.frame(with(icd9.princomp1, unclass(loadings))) %>% select(1:10)
+load_icd9.princomp1 = cbind(ICD9_Code = rownames(load_icd9.princomp1), load_icd9.princomp1)
+rownames(load_icd9.princomp1) = NULL
 
-f_drugs.pc1_ordered = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.1) %>% arrange(Comp.1) #there are 6 above .2
-f_drugs.pc1_desc = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.1) %>% arrange(desc(Comp.1))
-f_drugs.pc1 = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.1) %>% filter(abs(Comp.1) >= .2) %>% arrange(Comp.1)
+icd9.pc1_ordered = load_icd9.princomp1 %>% select(ICD9_Code,Comp.1) %>% arrange(Comp.1) #basically just 2, nothing interesting
+icd9.pc1_desc = load_icd9.princomp1 %>% select(ICD9_Code,Comp.1) %>% arrange(desc(Comp.1))
+icd9.pc1 = load_icd9.princomp1 %>% select(ICD9_Code,Comp.1) %>% filter(abs(Comp.1) >= .2) %>% arrange(Comp.1) #174.9, 199.0
 
-f_drugs.pc2_ordered = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.2) %>% arrange(Comp.2) # better correlates here range(-.24,.277) 
-f_drugs.pc2_desc = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.2) %>% arrange(desc(Comp.2))
-f_drugs.pc2 = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.2) %>% filter(abs(Comp.2) >= .2) %>% arrange(Comp.2) # values
+icd9.pc2_ordered = load_icd9.princomp1 %>% select(ICD9_Code,Comp.2) %>% arrange(Comp.2) 
+icd9.pc2_desc = load_icd9.princomp1 %>% select(ICD9_Code,Comp.2) %>% arrange(desc(Comp.2))
+icd9.pc2 = load_icd9.princomp1 %>% select(ICD9_Code,Comp.2) %>% filter(abs(Comp.2) >= .2) %>% arrange(Comp.2) # V70.7, 197.7 plus 174.9 and 199.0
 
-#must get the bc_drugs list of medications for these people as being binary for they got the drug or not
-f_bc_drugs_to_most_people = bc_drugs_to_most_people %>% filter(!Patient_ID %in% bob)
-f_bc_drugs_to_most_people = f_bc_drugs_to_most_people %>% mutate(herceptin = ifelse(grepl("trastuzu",tolower(Medication_Name)),1,0), perjeta = ifelse(grepl("pertuzu",tolower(Medication_Name)),1,0),ibrance = ifelse(grepl("palbociclib",tolower(Medication_Name)),1,0),afinitor = ifelse(grepl("everolimus",tolower(Medication_Name)),1,0),tykerb = ifelse(grepl("lapatin",tolower(Medication_Name)),1,0))
-f_bc_drugs_to_most_people$Patient_ID = as.character(f_bc_drugs_to_most_people$Patient_ID)
-f_bc_drugs_to_most_people = f_bc_drugs_to_most_people %>% select(-c(Medication_Name,numOccur)) %>% group_by(Patient_ID) %>% summarise_each(funs(sum))
-f_bc_drugs_to_most_people = f_bc_drugs_to_most_people %>% mutate_each(funs(ifelse(.>0,1,.)),-Patient_ID)
+#pc plotting
+icd9_race_princomp = autoplot(icd9.princomp1, data = bc_cohort_general, colour = 'Patient_Race')
+icd9_smoke_princomp = autoplot(icd9.princomp1, data = bc_cohort_general, colour = 'Patient_Smoking_Status')
+#younger than 40 seems rare: http://ww5.komen.org/KomenPerspectives/Breast-Cancer-in-Women-Younger-than-40.html
+bc_cohort_general = bc_cohort_general %>% mutate(age_binary = ifelse(Patient_Age <= 40,"young","old"))
+icd9_age_40_princomp = autoplot(icd9.princomp1, data = bc_cohort_general, colour = 'age_binary')
+
+######## HERE #######
+#Marina: 
+#icd9: icd9_eigenVector_plot, plot(icd9.princomp1, type = 'l'), icd9.pc1, icd9.pc2
+#drugs: 
+
 
 f_binary_ids_removed = f_ids_removed %>% mutate_each(funs(ifelse(.>0,1,.)))
 f_binary_tsne_drugs = tsne(f_binary_ids_removed)
