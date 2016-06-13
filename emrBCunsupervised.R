@@ -81,7 +81,7 @@ f_drugs.pc1 = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.1) %>% filt
 
 f_drugs.pc2_ordered = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.2) %>% arrange(Comp.2) # better correlates here range(-.24,.277) 
 f_drugs.pc2_desc = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.2) %>% arrange(desc(Comp.2))
-f_drugs.pc2 = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.2) %>% filter(abs(Comp.2) >= .2) %>% arrange(Comp.2) # values
+f_drugs.pc2 = load_f_drugs.princomp1 %>% select(Medication_Name,Comp.2) %>% filter(abs(Comp.2) >= .2) %>% arrange(Comp.2) # 8
 
 #pc plotting
 race_princomp = autoplot(f_drugs.princomp1, data = small_bc_general, colour = 'Patient_Race')
@@ -128,6 +128,16 @@ f_binary_tsne.drugs.demographics = inner_join(f_binary_tsne.drugs.demographics,f
 #back to plotting
 ggplot(data = f_binary_tsne.drugs.demographics, aes(x = V1, y = V2,colour = herceptin)) + geom_point()
 ggplot(data = f_binary_tsne.drugs.demographics, aes(x = V1, y = V2,colour = perjeta)) + geom_point()
+ggplot(data = f_binary_tsne.drugs.demographics, aes(x = V1, y = V2,colour = ibrance)) + geom_point()
+# damn it! what are these clusters?!
+plot(f_binary_tsne_drugs) # if plot this you get the names printed on the graph
+ggplot(data = f_binary_tsne.drugs.demographics, aes(x = V1, y = V2)) + geom_point() # If you plot this, you get the row numbers of the ids returned to the screen
+identify(f_binary_tsne_drugs,labels = rownames(f_ids_removed), offset = .5, col = "blue", cex = 1) # woot woot! works
+
+c = f_drugs_cast %>% select(Patient_ID)
+c$Patient_ID = as.factor(as.character(c$Patient_ID))
+View(c) # I am a computing god! Patient's are now identifiable by labeling them using identify and searching for patient_ids as factors
+# Next, can I store the values of the labeled points in a vector, todo this programmatically?
 
 ######## ICD9'S ###############################
 #specific comorbidities to look at: ER status, gastric cancer
@@ -142,7 +152,7 @@ icd9.princomp1 = princomp(icd9_ids_removed)
 save(icd9.princomp1, file = "icd9.princomp1.RData") #load("icd9.princomp1.RData")
 # PC deconvolution
 plot(icd9.princomp1) #barchart # how many pc's have variance/eigenvalue > 1
-plot(icd9.princomp1, type = 'l') #points. There's a pretty huge elbow at 8 PC's. But the eigenvalues are still super high.
+icd9_eigenvalues_plot = plot(icd9.princomp1, type = 'l') #points. There's a pretty huge elbow at 8 PC's. But the eigenvalues are still super high.
 #1. get eigenvalues by (princomp1$sdev)^2 and filter for those over 1
 # plot the first 2 pcs w/eigenvectors
 icd9_eigenVector_plot = autoplot(icd9.princomp1, data = bc_cohort_general, loadings = T, loadings.label = T, loadings.label.size = 4)
@@ -158,7 +168,7 @@ icd9.pc1 = load_icd9.princomp1 %>% select(ICD9_Code,Comp.1) %>% filter(abs(Comp.
 
 icd9.pc2_ordered = load_icd9.princomp1 %>% select(ICD9_Code,Comp.2) %>% arrange(Comp.2) 
 icd9.pc2_desc = load_icd9.princomp1 %>% select(ICD9_Code,Comp.2) %>% arrange(desc(Comp.2))
-icd9.pc2 = load_icd9.princomp1 %>% select(ICD9_Code,Comp.2) %>% filter(abs(Comp.2) >= .2) %>% arrange(Comp.2) # V70.7, 197.7 plus 174.9 and 199.0
+icd9.pc2 = load_icd9.princomp1 %>% select(ICD9_Code,Comp.2) %>% filter(abs(Comp.2) >= .2) %>% arrange(Comp.2) # V70.7 (examination in clinical trial), 197.7 plus 174.9 and 199.0
 
 #pc plotting
 icd9_race_princomp = autoplot(icd9.princomp1, data = bc_cohort_general, colour = 'Patient_Race')
@@ -167,23 +177,31 @@ icd9_smoke_princomp = autoplot(icd9.princomp1, data = bc_cohort_general, colour 
 bc_cohort_general = bc_cohort_general %>% mutate(age_binary = ifelse(Patient_Age <= 40,"young","old"))
 icd9_age_40_princomp = autoplot(icd9.princomp1, data = bc_cohort_general, colour = 'age_binary')
 
-######## HERE #######
-#Marina: 
-#icd9: icd9_eigenVector_plot, plot(icd9.princomp1, type = 'l'), icd9.pc1, icd9.pc2
-#drugs: 
+icd9_binary_ids_removed = icd9_ids_removed %>% mutate_each(funs(ifelse(.>0,1,.)))
+row.names(icd9_binary_ids_removed) = icd9_cast$Patient_ID
 
 
-f_binary_ids_removed = f_ids_removed %>% mutate_each(funs(ifelse(.>0,1,.)))
-f_binary_tsne_drugs = tsne(f_binary_ids_removed)
-save(f_binary_tsne_drugs, file = "f_binary_tsne_drugs.RData")
-f_binary_tsne.drugs_df = as.data.frame(f_binary_tsne_drugs)
-f_binary_tsne.drugs.demographics = cbind(small_bc_general,f_binary_tsne.drugs_df)
-ggplot(data = f_binary_tsne.drugs.demographics, aes(x = V1, y = V2,colour = Patient_Race)) + geom_point()
+######## HERE ####### tonight. OOPS has icd9....drugs in all names
+icd9_binary_tsne_drugs = tsne(icd9_binary_ids_removed)
+save(icd9_binary_tsne_drugs, file = "icd9_binary_tsne_drugs.RData")
+#######
+
+icd9_binary_tsne_drugs_df = as.data.frame(icd9_binary_tsne_drugs)
+icd9_binary_tsne_drugs.demographics = cbind(bc_cohort_general,icd9_binary_tsne_drugs_df)
+ggplot(data = icd9_binary_tsne_drugs.demographics, aes(x = V1, y = V2)) + geom_point()
+ggplot(data = icd9_binary_tsne_drugs.demographics, aes(x = V1, y = V2,colour = Patient_Race)) + geom_point()
+ggplot(data = icd9_binary_tsne_drugs.demographics, aes(x = V1, y = V2,colour = Patient_Smoking_Status)) + geom_point()
+ggplot(data = icd9_binary_tsne_drugs.demographics, aes(x = V1, y = V2,colour = age_binary)) + geom_point()
+ggplot(data = icd9_binary_tsne_drugs.demographics, aes(x = V1, y = V2,colour = Patient_Age)) + geom_point()
+
+########## could color by ICD9 codes that think are important. Here's example from the drugs
+# but better to use identify() to search directly
 #join the drug classification table to demographics for plotting
 f_binary_tsne.drugs.demographics$Patient_ID = as.character(f_binary_tsne.drugs.demographics$Patient_ID)
 f_binary_tsne.drugs.demographics = inner_join(f_binary_tsne.drugs.demographics,f_bc_drugs_to_most_people)
 #back to plotting
 ggplot(data = f_binary_tsne.drugs.demographics, aes(x = V1, y = V2,colour = herceptin)) + geom_point()
+#############################
 
 #-----------------------------------------------------------
 #print(drugs.pca) lots of pcs, don't do this
@@ -199,9 +217,10 @@ tsne.drugs = tsne(ids_removed)  # this took >30mins to run
 save(tsne.drugs, file = "tsne.drugs.RData")
 plot(tsne.drugs) # saved at 1000x750 aspect ratio
 
-binary_ids_removed = ids_removed %>% mutate_each(funs(ifelse(.>0,1,.)))
+binary_ids_removed = f_ids_removed %>% mutate_each(funs(ifelse(.>0,1,.)))
 binary.drugs.prcomp = prcomp(binary_ids_removed)
 binary.drugs.princomp1 = princomp(binary_ids_removed)
+binary.drugs_eigenVector_plot = autoplot(binary.drugs.princomp1, data = small_bc_general, loadings = T, loadings.label = T, loadings.label.size = 2)
 autoplot(binary.drugs.prcomp) #tmpResults
 autoplot(binary.drugs.princomp1) #saved to ~/Desktop/tmpResults
 binary.tsne.drugs = tsne(binary_ids_removed)
